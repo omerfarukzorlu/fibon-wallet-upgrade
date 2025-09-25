@@ -1243,10 +1243,7 @@ export function getMessageEventRole(record: BasicMessageRecord) {
 }
 
 export function generateRandomWalletName() {
-  let name = 'My Wallet - '
-  for (let i = 0; i < 4; i++) {
-    name = name.concat(Math.floor(Math.random() * 10).toString())
-  }
+  let name = 'Aries Bifold'
 
   return name
 }
