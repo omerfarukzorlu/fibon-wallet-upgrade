@@ -13,24 +13,6 @@ const NetInfo: React.FC = () => {
   const isConnected = silentAssertConnectedNetwork()
   useEffect(() => {
     // Network is connected
-    if (isConnected) {
-      // Assert that internet is available
-      assertNetworkReachable().then((status) => {
-        // Connected to a network, reset toast
-        setHasShown(false)
-        if (status) {
-          return
-        }
-
-        // User is connected to a network but has no internet, display toast
-        Toast.show({
-          type: ToastType.Error,
-          autoHide: true,
-          text1: t('NetInfo.NoInternetConnectionTitle'),
-        })
-      })
-      return
-    }
 
     // Only show the toast if the user hasn't seen it already
     if (!hasShown) {

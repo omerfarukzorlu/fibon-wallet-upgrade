@@ -19,7 +19,13 @@ const NetInfoModal: React.FC<NetInfoModalProps> = ({ visible, onSubmit = () => n
     <>
       {visible && (
         <SafeAreaView>
-
+          <PopupModal
+            notificationType={InfoBoxType.Error}
+            title={t('NetInfo.NoInternetConnectionTitle')}
+            description={t('NetInfo.NoInternetConnectionMessage')}
+            onCallToActionLabel={t('Global.Okay')}
+            onCallToActionPressed={() => onSubmit()}
+          ></PopupModal>
         </SafeAreaView>
       )}
     </>
