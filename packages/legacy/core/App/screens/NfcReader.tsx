@@ -43,7 +43,8 @@ const NfcReader = ({ navigation }) => {
     }, [connectionId]);
 
     const postMasterCred = async (connectionId: any) => {
-      
+
+      console.log("Connetion ID:",connectionId)
         try {
 
             var raw = JSON.stringify({
