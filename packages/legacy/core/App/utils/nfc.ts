@@ -1,111 +1,51 @@
-﻿import { Buffer } from 'buffer';
-import CryptoJS from 'crypto-js';
-import NfcManager, { NfcTech } from 'react-native-nfc-manager';
-import { Platform } from 'react-native';
+﻿import { Des } from "data-crypto"
+import { Buffer } from "buffer"
+import CryptoJS from "crypto-js"
+import NfcManager, { NfcTech } from "react-native-nfc-manager"
+import { Platform } from "react-native"
 
-// React Native için güvenli rastgele sayı üretimi
-let secureRandom: any;
-try {
-  // React Native Crypto modülünü dene
-  secureRandom = require('react-native-randombytes');
-} catch (e) {
-  console.warn('react-native-randombytes not available, using fallback');
-  secureRandom = null;
-}
+// XOR ve diğer yardımcı kütüphaneler
+const xor = require("buffer-xor")
+const bigInt = require("big-integer")
 
 // ==================== TYPES ====================
 interface NFCResponse {
-  success: boolean;
+  success?: boolean;
+  isSuccess?: boolean;
   data?: any;
   error?: string;
+  errorMessage?: string;
   documentNumber?: string;
   birthDate?: string;
   expiryDate?: string;
   personalData?: any;
   photo?: string;
+  base64Image?: string;
+  name?: string;
+  surname?: string;
+  id_number?: string;
+  document_number?: string;
+  birth_date?: string;
+  expiry_date?: string;
+  gender?: string;
+  byte_array_image?: any;
 }
 
-interface MRZData {
-  documentNumber: string;
-  birthDate: string;
-  expiryDate: string;
-  documentChecksum: number;
-  birthChecksum: number;
-  expiryChecksum: number;
-}
-
-// ==================== CONSTANTS ====================
-const APDU_COMMANDS = {
-  SELECT_EPASSPORT: [0x00, 0xA4, 0x04, 0x0C, 0x07, 0xA0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01],
-  GET_CHALLENGE: [0x00, 0x84, 0x00, 0x00, 0x08],
-  EXTERNAL_AUTHENTICATE: [0x00, 0x82, 0x00, 0x00, 0x28],
-  SELECT_EF_COM: [0x0C, 0xA4, 0x02, 0x0C, 0x02, 0x01, 0x1E],
-  SELECT_EF_DG1: [0x0C, 0xA4, 0x02, 0x0C, 0x02, 0x01, 0x01],
-  READ_BINARY: [0x0C, 0xB0, 0x00, 0x00, 0x04]
-};
-
-const SW_SUCCESS = [0x90, 0x00];
-const CRYPTO_SETTINGS = {
-  IV: "0000000000000000",
-  PADDING: CryptoJS.pad.NoPadding
-};
-
-// ==================== SECURE RANDOM FUNCTIONS ====================
+// ==================== UTILITY FUNCTIONS FROM ORIGINAL ====================
 
 /**
- * Generate secure random bytes - React Native compatible
+ * Convert hex string to ASCII (from original code)
  */
-function generateSecureRandomBytes(length: number): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    if (secureRandom && secureRandom.randomBytes) {
-      // Use react-native-randombytes if available
-      secureRandom.randomBytes(length, (error: any, bytes: any) => {
-        if (error) {
-          console.warn('secureRandom error, using fallback:', error);
-          resolve(generateFallbackRandomBytes(length));
-        } else {
-          resolve(Buffer.from(bytes));
-        }
-      });
-    } else {
-      // Fallback to crypto-js random
-      resolve(generateFallbackRandomBytes(length));
-    }
-  });
+function hex_to_ascii(hex: string): string {
+  let ascii = "";
+  for (let i = 0; i < hex.length; i += 2) {
+    ascii += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+  }
+  return ascii;
 }
 
 /**
- * Fallback random generation using crypto-js
- */
-function generateFallbackRandomBytes(length: number): Buffer {
-  console.log('Using fallback random generation');
-
-  // Use crypto-js for random generation
-  const randomWords = CryptoJS.lib.WordArray.random(length);
-  const randomHex = randomWords.toString(CryptoJS.enc.Hex);
-
-  // Add additional entropy from timestamp and Math.random
-  const timestamp = Date.now().toString(16);
-  const mathRandom = Math.random().toString(16).substring(2);
-  const combined = randomHex + timestamp + mathRandom;
-
-  // Take only needed bytes
-  const finalHex = combined.substring(0, length * 2);
-  return Buffer.from(finalHex, 'hex');
-}
-
-/**
- * Generate secure random hex string
- */
-async function generateSecureRandomHex(length: number): Promise<string> {
-  const bytes = await generateSecureRandomBytes(length);
-  return bytes.toString('hex').toUpperCase();
-}
-
-// ==================== UTILITY FUNCTIONS ====================
-
-/**
- * Convert hex string to byte array
+ * Convert hex to bytes array (from original code)
  */
 function hexToBytes(hex: string): number[] {
   const bytes: number[] = [];
@@ -116,27 +56,142 @@ function hexToBytes(hex: string): number[] {
 }
 
 /**
- * Convert byte array to hex string
+ * Convert bytes to hex string (from original code)
  */
-function bytesToHex(bytes: number[]): string {
-  return bytes.map(byte => ('0' + (byte & 0xFF).toString(16)).slice(-2)).join('').toUpperCase();
+function toHexString(bytes: number[]): string {
+  return Array.from(bytes, function(byte) {
+    return ("0" + (byte & 0xff).toString(16)).slice(-2);
+  }).join("").toUpperCase();
 }
 
 /**
- * Convert hex string to ASCII
+ * Calculate check digit (from original code)
  */
-function hexToAscii(hex: string): string {
-  let ascii = '';
-  for (let i = 0; i < hex.length; i += 2) {
-    ascii += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+function checkdigitCalc(input: string): number {
+  let sum = 0;
+  let weight = 0;
+  const alphabet = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"];
+
+  for (let i = 0; i < input.length; i++) {
+    if (i % 3 === 0) weight = 7;
+    else if (i % 3 === 1) weight = 3;
+    else weight = 1;
+
+    let value: number;
+    if (isNaN(parseInt(input[i]))) {
+      value = alphabet.indexOf(input[i]) + 10;
+    } else {
+      value = parseInt(input[i]);
+    }
+
+    sum += value * weight;
   }
-  return ascii;
+
+  return sum % 10;
 }
 
 /**
- * XOR two hex strings
+ * Get ENC and MAC keys (from original code)
  */
-function xorHex(hex1: string, hex2: string): string {
+function get_ENC_MAC(seed: string): { k_enc: string; k_mac: string } {
+  const seedWithCounter1 = seed.concat("00000001");
+  const hash1 = CryptoJS.SHA1(CryptoJS.enc.Hex.parse(seedWithCounter1)).toString(CryptoJS.enc.Hex);
+  hash1.toUpperCase();
+
+  const kenc1 = hash1.substring(0, 16);
+  const kenc2 = hash1.substring(16, 32);
+  const k_enc = kenc1.concat(kenc2);
+
+  const seedWithCounter2 = seed.concat("00000002");
+  const hash2 = CryptoJS.SHA1(CryptoJS.enc.Hex.parse(seedWithCounter2)).toString(CryptoJS.enc.Hex);
+  hash2.toUpperCase();
+
+  const kmac1 = hash2.substring(0, 16);
+  const kmac2 = hash2.substring(16, 32);
+  const k_mac = kmac1.concat(kmac2);
+
+  return { k_enc, k_mac };
+}
+
+/**
+ * 3DES Encryption (from original code)
+ */
+function DES3Encrypt(data: string, key: string): string {
+  const iv = CryptoJS.enc.Hex.parse("00000000");
+  const config = {
+    iv: iv,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.NoPadding,
+  };
+
+  const encrypted = CryptoJS.TripleDES.encrypt(
+    CryptoJS.enc.Hex.parse(data),
+    CryptoJS.enc.Hex.parse(key),
+    config
+  );
+
+  return encrypted.ciphertext.toString(CryptoJS.enc.Hex).toUpperCase();
+}
+
+/**
+ * 3DES Decryption (from original code)
+ */
+function DES3Decrypt(encryptedData: string, key: string): string {
+  const iv = CryptoJS.enc.Hex.parse("00000000");
+  const config = {
+    iv: iv,
+    mode: CryptoJS.mode.CBC,
+    padding: CryptoJS.pad.NoPadding,
+  };
+
+  const encryptedObj = {
+    ciphertext: CryptoJS.enc.Hex.parse(encryptedData)
+  };
+
+  const decrypted = CryptoJS.TripleDES.decrypt(encryptedObj, CryptoJS.enc.Hex.parse(key), config);
+
+  return decrypted.toString(CryptoJS.enc.Hex).toUpperCase();
+}
+
+/**
+ * MAC ISO 9797 Algorithm 3 (from original code)
+ */
+function macIso9797_alg3(key: string, data: string, padding: string): string {
+  const keyLength = key.length / 2;
+  let key1 = key.substring(0, 16);
+  let key2 = key.substring(16, 32);
+
+  if (keyLength != 16) {
+    console.log("Error, key length should be 16");
+    return "";
+  }
+
+  data = data.concat(padding);
+  const remainder = (data.length / 2) % 8;
+  data = data.concat("00".repeat(8 - remainder));
+
+  const blockCount = data.length / 2 / 8;
+  let mac = "0000000000000000";
+
+  for (let i = 0; i < blockCount; i++) {
+    const block = data.substring(i * 16, i * 16 + 16);
+    const xorBuffer1 = Buffer.from(block, "hex");
+    const xorBuffer2 = Buffer.from(mac, "hex");
+    mac = xor(xorBuffer1, xorBuffer2);
+    const macHex = toHexString(mac);
+    mac = Des.encrypt(macHex, key1);
+  }
+
+  mac = Des.decrypt(mac, key2);
+  mac = Des.encrypt(mac, key1);
+
+  return mac;
+}
+
+/**
+ * XOR two hex strings (improved version)
+ */
+function xor2(hex1: string, hex2: string): string {
   const buffer1 = Buffer.from(hex1, 'hex');
   const buffer2 = Buffer.from(hex2, 'hex');
   const result = buffer1.map((byte, index) => byte ^ buffer2[index]);
@@ -144,352 +199,325 @@ function xorHex(hex1: string, hex2: string): string {
 }
 
 /**
- * Calculate MRZ check digit
+ * Hex to decimal conversion (from original code)
  */
-function calculateCheckDigit(input: string): number {
-  const weights = [7, 3, 1];
-  let sum = 0;
+function hex2decimal(hex: string): string {
+  function addStrings(str1: string, str2: string): string {
+    let carry = 0;
+    let result: number[] = [];
+    str1 = str1.split("").map(Number);
+    str2 = str2.split("").map(Number);
 
-  for (let i = 0; i < input.length; i++) {
-    const char = input[i];
-    let value: number;
-
-    if (char >= '0' && char <= '9') {
-      value = parseInt(char);
-    } else if (char >= 'A' && char <= 'Z') {
-      value = char.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
-    } else {
-      value = 0; // For '<' and other characters
+    while (str1.length || str2.length) {
+      const sum = (str1.pop() || 0) + (str2.pop() || 0) + carry;
+      result.unshift(sum < 10 ? sum : sum - 10);
+      carry = sum < 10 ? 0 : 1;
     }
 
-    sum += value * weights[i % 3];
+    if (carry) result.unshift(carry);
+    return result.join("");
   }
 
-  return sum % 10;
-}
-
-/**
- * Prepare MRZ data with checksums
- */
-function prepareMRZData(documentNumber: string, birthDate: string, expiryDate: string): MRZData {
-  // Validate input formats
-  if (documentNumber.length !== 9) {
-    throw new Error('Document number must be 9 characters');
-  }
-
-  if (birthDate.length !== 6 || expiryDate.length !== 6) {
-    throw new Error('Birth date and expiry date must be in YYMMDD format (6 characters)');
-  }
-
-  // Calculate checksums
-  const documentChecksum = calculateCheckDigit(documentNumber);
-  const birthChecksum = calculateCheckDigit(birthDate);
-  const expiryChecksum = calculateCheckDigit(expiryDate);
-
-  return {
-    documentNumber,
-    birthDate,
-    expiryDate,
-    documentChecksum,
-    birthChecksum,
-    expiryChecksum
-  };
-}
-
-// ==================== CRYPTO FUNCTIONS ====================
-
-/**
- * Derive BAC keys from MRZ data
- */
-function deriveBACSeedKey(mrzData: MRZData): string {
-  const mrzInfo =
-    mrzData.documentNumber +
-    mrzData.documentChecksum +
-    mrzData.birthDate +
-    mrzData.birthChecksum +
-    mrzData.expiryDate +
-    mrzData.expiryChecksum;
-
-  console.log('MRZ Info for key derivation:', mrzInfo);
-
-  // SHA-1 hash of MRZ info
-  const hash = CryptoJS.SHA1(mrzInfo).toString(CryptoJS.enc.Hex);
-  return hash.substring(0, 32); // First 16 bytes
-}
-
-/**
- * Derive encryption and MAC keys
- */
-function deriveKeys(seed: string): { kEnc: string; kMac: string } {
-  const seedWithCounter1 = seed + "00000001";
-  const seedWithCounter2 = seed + "00000002";
-
-  const hash1 = CryptoJS.SHA1(CryptoJS.enc.Hex.parse(seedWithCounter1)).toString(CryptoJS.enc.Hex);
-  const hash2 = CryptoJS.SHA1(CryptoJS.enc.Hex.parse(seedWithCounter2)).toString(CryptoJS.enc.Hex);
-
-  const kEnc = hash1.substring(0, 32); // First 16 bytes
-  const kMac = hash2.substring(0, 32); // First 16 bytes
-
-  return { kEnc, kMac };
-}
-
-/**
- * 3DES encryption
- */
-function tripleDesEncrypt(data: string, key: string): string {
-  const keyObj = CryptoJS.enc.Hex.parse(key);
-  const dataObj = CryptoJS.enc.Hex.parse(data);
-  const iv = CryptoJS.enc.Hex.parse(CRYPTO_SETTINGS.IV);
-
-  const encrypted = CryptoJS.TripleDES.encrypt(dataObj, keyObj, {
-    iv: iv,
-    mode: CryptoJS.mode.CBC,
-    padding: CRYPTO_SETTINGS.PADDING
+  let decimal = "0";
+  hex.split("").forEach(function(hexDigit) {
+    const digit = parseInt(hexDigit, 16);
+    for (let bitMask = 8; bitMask; bitMask >>= 1) {
+      decimal = addStrings(decimal, decimal);
+      if (digit & bitMask) decimal = addStrings(decimal, "1");
+    }
   });
 
-  return encrypted.ciphertext.toString(CryptoJS.enc.Hex).toUpperCase();
+  return decimal;
 }
 
 /**
- * 3DES decryption
+ * Decimal to hex conversion (from original code)
  */
-function tripleDesDecrypt(encryptedData: string, key: string): string {
-  const keyObj = CryptoJS.enc.Hex.parse(key);
-  const iv = CryptoJS.enc.Hex.parse(CRYPTO_SETTINGS.IV);
+function dec2hex(decimal: string): string {
+  const digits = decimal.toString().split("");
+  const hexDigits: number[] = [];
+  const hexResult: string[] = [];
+  let temp: number;
+  let remainder: number;
 
-  const encryptedObj = {
-    ciphertext: CryptoJS.enc.Hex.parse(encryptedData)
-  };
-
-  const decrypted = CryptoJS.TripleDES.decrypt(encryptedObj, keyObj, {
-    iv: iv,
-    mode: CryptoJS.mode.CBC,
-    padding: CRYPTO_SETTINGS.PADDING
-  });
-
-  return decrypted.toString(CryptoJS.enc.Hex).toUpperCase();
-}
-
-/**
- * Calculate MAC using ISO 9797 Algorithm 3
- */
-function calculateMAC(data: string, key: string): string {
-  // Pad data to multiple of 8 bytes
-  const paddedLength = Math.ceil(data.length / 16) * 16;
-  const paddedData = data.padEnd(paddedLength, '0');
-
-  let mac = CRYPTO_SETTINGS.IV;
-
-  // Process data in 8-byte blocks
-  for (let i = 0; i < paddedData.length; i += 16) {
-    const block = paddedData.substring(i, i + 16);
-    const xored = xorHex(mac, block);
-    mac = tripleDesEncrypt(xored, key);
-  }
-
-  return mac;
-}
-
-// ==================== NFC COMMUNICATION ====================
-
-/**
- * Send APDU command and receive response
- */
-async function sendAPDU(command: number[]): Promise<number[]> {
-  console.log('Sending APDU:', bytesToHex(command));
-
-  try {
-    const response = await NfcManager.transceive(command);
-    console.log('Received response:', bytesToHex(response));
-
-    // Check response status
-    if (response.length < 2) {
-      throw new Error('Invalid response length');
+  while (digits.length) {
+    remainder = 1 * digits.shift()!;
+    for (temp = 0; remainder || temp < hexDigits.length; temp++) {
+      remainder += (hexDigits[temp] || 0) * 10;
+      hexDigits[temp] = remainder % 16;
+      remainder = (remainder - hexDigits[temp]) / 16;
     }
-
-    const sw1 = response[response.length - 2];
-    const sw2 = response[response.length - 1];
-
-    if (sw1 !== SW_SUCCESS[0] || sw2 !== SW_SUCCESS[1]) {
-      throw new Error(`APDU error: SW1=${sw1.toString(16)}, SW2=${sw2.toString(16)}`);
-    }
-
-    // Return data without status bytes
-    return response.slice(0, response.length - 2);
-  } catch (error) {
-    console.error('APDU error:', error);
-    throw error;
-  }
-}
-
-/**
- * Select ePassport application
- */
-async function selectEPassportApp(): Promise<void> {
-  console.log('Selecting ePassport application...');
-  await sendAPDU(APDU_COMMANDS.SELECT_EPASSPORT);
-}
-
-/**
- * Get challenge from card
- */
-async function getChallenge(): Promise<string> {
-  console.log('Getting challenge...');
-  const response = await sendAPDU(APDU_COMMANDS.GET_CHALLENGE);
-  return bytesToHex(response);
-}
-
-/**
- * Perform external authentication (BAC)
- */
-async function performBAC(mrzData: MRZData, rndIC: string): Promise<{ ksEnc: string; ksMac: string; ssc: string }> {
-  console.log('Performing BAC authentication...');
-
-  // Derive keys
-  const seed = deriveBACSeedKey(mrzData);
-  const { kEnc, kMac } = deriveKeys(seed);
-
-  console.log('Derived keys - kEnc:', kEnc, 'kMac:', kMac);
-
-  // Generate random numbers using secure random
-  const rndIFD = await generateSecureRandomHex(8);
-  const kIFD = await generateSecureRandomHex(16);
-
-  console.log('Generated rndIFD:', rndIFD, 'kIFD:', kIFD);
-
-  // Create authentication data
-  const authData = rndIFD + rndIC + kIFD;
-  const encryptedAuthData = tripleDesEncrypt(authData, kEnc);
-
-  // Calculate MAC
-  const mac = calculateMAC(encryptedAuthData, kMac);
-  const authCommand = encryptedAuthData + mac.substring(0, 16); // First 8 bytes of MAC
-
-  // Send external authenticate command
-  const command = APDU_COMMANDS.EXTERNAL_AUTHENTICATE.concat(hexToBytes(authCommand));
-  const response = await sendAPDU(command);
-
-  // Decrypt and verify response
-  const responseHex = bytesToHex(response);
-  const encryptedResponse = responseHex.substring(0, responseHex.length - 16);
-  const responseMac = responseHex.substring(responseHex.length - 16);
-
-  // Verify MAC
-  const calculatedMac = calculateMAC(encryptedResponse, kMac);
-  if (responseMac !== calculatedMac.substring(0, 16)) {
-    throw new Error('BAC MAC verification failed');
   }
 
-  // Decrypt response
-  const decryptedResponse = tripleDesDecrypt(encryptedResponse, kEnc);
-
-  // Extract kIC from response
-  const rndICVerify = decryptedResponse.substring(0, 16);
-  const rndIFDVerify = decryptedResponse.substring(16, 32);
-  const kIC = decryptedResponse.substring(32, 64);
-
-  if (rndIC !== rndICVerify || rndIFD !== rndIFDVerify) {
-    throw new Error('BAC challenge verification failed');
+  while (hexDigits.length) {
+    hexResult.push(hexDigits.pop()!.toString(16));
   }
 
-  // Derive session keys
-  const sessionSeed = xorHex(kIFD, kIC);
-  const sessionKeys = deriveKeys(sessionSeed);
+  let result = hexResult.join("");
+  if (result.length % 2 == 1) {
+    result = "0".concat(result);
+  }
 
-  // Initialize SSC
-  const ssc = (rndIC + rndIFD).substring(12, 28); // Last 4 bytes of each
-
-  console.log('BAC successful - Session keys derived');
-
-  return {
-    ksEnc: sessionKeys.kEnc,
-    ksMac: sessionKeys.kMac,
-    ssc: ssc
-  };
+  return result;
 }
 
 /**
- * Read data group with secure messaging
+ * Hex number increment (from original code)
  */
-async function readDataGroupSecure(dgNumber: number, ksEnc: string, ksMac: string, ssc: string): Promise<string> {
-  console.log(`Reading data group ${dgNumber} with secure messaging...`);
-
-  // Select data group file
-  const selectCommand = dgNumber === 1 ? APDU_COMMANDS.SELECT_EF_DG1 : APDU_COMMANDS.SELECT_EF_COM;
-  await sendAPDU(selectCommand);
-
-  // Read binary data
-  const readResponse = await sendAPDU(APDU_COMMANDS.READ_BINARY);
-
-  // For now, return raw data - in production, implement secure messaging
-  return bytesToHex(readResponse);
+function hexNumberIncrement(hex: string): string {
+  const decimal = bigInt(hex2decimal(hex));
+  const incremented = decimal.add("1");
+  return incremented.toString(16).toUpperCase();
 }
 
 /**
- * Parse DG1 (MRZ data)
+ * Pad to 4 digits (from original code)
  */
-function parseDG1(data: string): any {
-  console.log('Parsing DG1 data:', data);
-
-  // Convert hex to ASCII and extract MRZ lines
-  const ascii = hexToAscii(data);
-  console.log('DG1 ASCII:', ascii);
-
-  // Extract meaningful data from MRZ
-  // This is a simplified parser - implement full MRZ parsing as needed
-  return {
-    raw: data,
-    ascii: ascii,
-    parsed: true
-  };
+function padtofourdigit(num: number): string {
+  const hexValue = num.toString(16);
+  const padding = "0".repeat(4 - hexValue.length).concat(hexValue);
+  return padding;
 }
+
+/**
+ * UnPad hex (from original code)
+ */
+function unPadHex(hex: string): string {
+  const index = hex.lastIndexOf("80");
+  for (let i = index + 1; i < hex.length; i++) {
+    if (hex.charAt(i) != "0") return hex;
+  }
+  return hex.substring(0, index);
+}
+
+/**
+ * Calculate percentage (from original code)
+ */
+function _calculatePercentage(total: number, current: number): number {
+  return (current * 100) / total;
+}
+
+/**
+ * Hex fixing (from original code)
+ */
+function hexFixing(hex: string): number[] {
+  const result = [0, 0x82, 0, 0, 0x28];
+  for (let i = 0; i < hex.length; i += 2) {
+    const byte = parseInt(hex.substr(i, 2), 16);
+    result.push(byte);
+  }
+  result.push(0x28);
+  return result;
+}
+
+// ==================== GLOBAL VARIABLES (from original code) ====================
+let rndIC: string;
+let kENC: string;
+let rndIFD: string;
+let kIFD = "0B795240CB7049B01C19B33E32804F0B";
+let ksMAC: string;
+let ksENC: string;
+let SSC: string;
+let DATA_GROUP = "0101";
+let DO87: string;
+let rapdu: string;
+let dataLength: number;
+let o: number;
+let sixthCmdResponseLength: number;
+
+let percentage = 0;
+let isDG1Read = false;
+let DOCUMENT_NUMBER = "";
+let BIRTH_DATE = "";
+let EXPIRY_DATE = "";
+let base64Image = "";
+let MRZ_DATA = "";
+let byteArrayImage: any = "";
 
 // ==================== MAIN NFC READING FUNCTION ====================
 
 /**
- * Start NFC reading process
+ * Start NFC reading process (based on original working code)
  */
 export async function startReading(
   documentNumber: string,
   birthDate: string,
   expiryDate: string
 ): Promise<NFCResponse> {
-  console.log('=== Starting NFC Reading ===');
+  console.log('=== Starting NFC Reading (Revised) ===');
   console.log('Input:', { documentNumber, birthDate, expiryDate });
 
   try {
+    // Initialize global variables
+    percentage = 0;
+    DATA_GROUP = "0101";
+    isDG1Read = false;
+
     // Initialize NFC
     console.log('Initializing NFC...');
-    await NfcManager.start();
-    await NfcManager.requestTechnology([NfcTech.IsoDep]);
+    const tech = NfcTech.IsoDep;
+    await NfcManager.requestTechnology(tech, {
+      alertMessage: 'Please put your ID card on the back of the phone and do not move it until the check mark.'
+    });
 
-    // Prepare MRZ data
-    const mrzData = prepareMRZData(documentNumber, birthDate, expiryDate);
-    console.log('MRZ data prepared:', mrzData);
+    // Set global variables
+    DOCUMENT_NUMBER = documentNumber;
+    BIRTH_DATE = birthDate;
+    EXPIRY_DATE = expiryDate;
 
     // Step 1: Select ePassport application
-    await selectEPassportApp();
+    console.log('Selecting ePassport application...');
+    let resp: any;
 
-    // Step 2: Get challenge for BAC
-    const rndIC = await getChallenge();
+    if (Platform.OS === 'ios') {
+      resp = await NfcManager.sendCommandAPDUIOS([0x00, 0xA4, 0x04, 0x0C, 0x07, 0xA0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01]);
+      resp = resp.sw1;
+    } else {
+      resp = await NfcManager.transceive([0x00, 0xA4, 0x04, 0x0C, 0x07, 0xA0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01]);
+      resp = resp[0];
+    }
 
-    // Step 3: Perform BAC authentication
-    const { ksEnc, ksMac, ssc } = await performBAC(mrzData, rndIC);
+    if (resp !== 0x90) {
+      throw new Error('Failed to select ePassport application');
+    }
 
-    // Step 4: Read DG1 (MRZ data)
-    const dg1Data = await readDataGroupSecure(1, ksEnc, ksMac, ssc);
-    const parsedDG1 = parseDG1(dg1Data);
+    // Step 2: Get challenge
+    console.log('Getting challenge...');
+    if (Platform.OS === 'ios') {
+      resp = await NfcManager.sendCommandAPDUIOS([0x00, 0x84, 0x00, 0x00, 0x08]);
+    } else {
+      resp = await NfcManager.transceive([0x00, 0x84, 0x00, 0x00, 0x08]);
+    }
 
-    console.log('=== NFC Reading Completed Successfully ===');
+    // Step 3: Prepare MRZ data and keys (using original logic)
+    const mrz = documentNumber + checkdigitCalc(documentNumber) + birthDate + checkdigitCalc(birthDate) + expiryDate + checkdigitCalc(expiryDate);
+    const hash_mrz = CryptoJS.SHA1(mrz).toString(CryptoJS.enc.Hex);
+    const k_seed = hash_mrz.substring(0, 32);
+
+    console.log('MRZ:', mrz);
+    console.log('MRZ Hash:', hash_mrz);
+    console.log('K_seed:', k_seed);
+
+    // Generate random numbers (using original fixed values for compatibility)
+    rndIFD = "781723860C06C226";
+
+    // Extract rndIC from challenge response
+    if (Platform.OS === 'ios') {
+      rndIC = toHexString(resp.response).toUpperCase();
+    } else {
+      rndIC = toHexString(resp.slice(0, -2)).toUpperCase();
+    }
+
+    console.log('rndIC:', rndIC);
+    console.log('rndIFD:', rndIFD);
+    console.log('kIFD:', kIFD);
+
+    // Prepare authentication data (using original logic)
+    const s = rndIFD.concat(rndIC).concat(kIFD);
+    const keys = get_ENC_MAC(k_seed);
+    const k_enc = keys.k_enc;
+    const k_mac = keys.k_mac;
+
+    console.log('s (auth data):', s);
+    console.log('k_enc:', k_enc);
+    console.log('k_mac:', k_mac);
+
+    kENC = k_enc;
+
+    // Fix key for encryption (from original code)
+    let fixedKeyenc = k_enc;
+    if (k_enc.length == 32) {
+      fixedKeyenc = k_enc.concat(k_enc.substring(0, 16));
+    }
+
+    console.log('fixedKeyenc:', fixedKeyenc);
+
+    // Encrypt authentication data
+    const e_ifd = DES3Encrypt(s, fixedKeyenc);
+    console.log('e_ifd (encrypted):', e_ifd);
+
+    // Calculate MAC
+    const m_ifd = macIso9797_alg3(k_mac, e_ifd, "80");
+    console.log('m_ifd (MAC):', m_ifd);
+
+    // Prepare command data
+    const cmd_data = e_ifd.concat(m_ifd);
+    console.log('cmd_data:', cmd_data);
+
+    // Step 4: External Authentication
+    console.log('Performing external authentication...');
+
+    if (Platform.OS === 'ios') {
+      resp = await NfcManager.sendCommandAPDUIOS({
+        cla: 0x00,
+        ins: 0x82,
+        p1: 0x00,
+        p2: 0x00,
+        lc: 0x28,
+        data: hexToBytes(cmd_data),
+        le: 0x28
+      });
+
+      if (resp.sw1 != 0x90) {
+        throw new Error(`External authentication failed: SW1=${resp.sw1.toString(16)}, SW2=${resp.sw2?.toString(16) || '00'}`);
+      }
+    } else {
+      resp = await NfcManager.transceive(hexFixing(cmd_data));
+
+      if (resp[resp.length - 2] != 0x90) {
+        throw new Error(`External authentication failed: SW1=${resp[resp.length - 2].toString(16)}, SW2=${resp[resp.length - 1].toString(16)}`);
+      }
+    }
+
+    console.log('External authentication successful!');
+
+    // Step 5: Process authentication response and derive session keys
+    let responseHex: string;
+    if (Platform.OS === 'ios') {
+      responseHex = toHexString(resp.response).toUpperCase();
+    } else {
+      responseHex = toHexString(resp.slice(0, -2)).toUpperCase();
+    }
+
+    console.log('Auth response:', responseHex);
+
+    // Decrypt response and extract kIC
+    let k_ic = DES3Decrypt(responseHex, kENC);
+    k_ic = k_ic.substring(32, 64);
+
+    console.log('k_ic:', k_ic);
+
+    // Derive session keys
+    const k_seed_session = xor2(kIFD, k_ic);
+    const session_keys = get_ENC_MAC(k_seed_session);
+    const ks_enc = session_keys.k_enc;
+    const ks_mac = session_keys.k_mac;
+
+    ksMAC = ks_mac;
+    ksENC = ks_enc;
+
+    console.log('Session keys derived - ksENC:', ks_enc, 'ksMAC:', ks_mac);
+
+    // Initialize SSC (Send Sequence Counter)
+    SSC = rndIC.slice(-8).concat(rndIFD.slice(-8));
+
+    console.log('SSC initialized:', SSC);
+
+    console.log('=== BAC Authentication Completed Successfully ===');
+
+    // Now we can proceed with secure messaging to read data groups
+    // For now, return success with basic info
 
     return {
       success: true,
+      isSuccess: true,
       documentNumber,
       birthDate,
       expiryDate,
-      personalData: parsedDG1,
       data: {
-        dg1: parsedDG1
+        message: "BAC authentication successful",
+        sessionKeys: { ksENC, ksMAC },
+        ssc: SSC
       }
     };
 
@@ -497,104 +525,48 @@ export async function startReading(
     console.error('=== NFC Reading Failed ===');
     console.error('Error:', error);
 
+    let errorMessage = "Unknown error occurred";
+    let errorCode = 0x7d1;
+
+    if (error instanceof Error) {
+      errorMessage = error.message;
+
+      // Specific error handling based on original code
+      if (error.message.includes('SW1=69, SW2=82')) {
+        errorMessage = "Kimlik karti verilen inputlarla uyumlu degil.";
+        errorCode = 0x7d6;
+      } else if (error.message.includes('APDU error')) {
+        errorMessage = "Kimlik karti ile telefon arasindaki baglanti koptu.";
+        errorCode = 0x7d1;
+      }
+    }
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error occurred'
+      isSuccess: false,
+      error: errorCode,
+      errorMessage
     };
   } finally {
-    // Clean up NFC
-    try {
-      await _cleanUp();
-    } catch (cleanupError) {
-      console.warn('Cleanup error:', cleanupError);
-    }
+    // Clean up will be handled by the calling function
   }
 }
 
 /**
- * Clean up NFC resources - Fixed version
+ * Clean up NFC resources
  */
 export async function _cleanUp(): Promise<void> {
   console.log('Cleaning up NFC resources...');
 
   try {
-    // Check if cancelTechnologyRequest exists
     if (NfcManager.cancelTechnologyRequest && typeof NfcManager.cancelTechnologyRequest === 'function') {
       await NfcManager.cancelTechnologyRequest();
       console.log('Technology request cancelled');
-    } else {
-      console.warn('cancelTechnologyRequest not available');
-    }
-
-    // Alternative cleanup methods
-    try {
-      // Try different cleanup methods
-      if (NfcManager.unregisterTagEvent && typeof NfcManager.unregisterTagEvent === 'function') {
-        await NfcManager.unregisterTagEvent();
-        console.log('Tag event unregistered');
-      }
-    } catch (altError) {
-      console.warn('Alternative cleanup failed:', altError);
     }
 
     console.log('NFC cleanup completed');
   } catch (error) {
     console.warn('NFC cleanup error:', error);
-    // Don't throw error, just log it
-  }
-}
-
-// ==================== TEST FUNCTIONS ====================
-
-/**
- * Test NFC functionality with sample data
- */
-export async function testNFC(): Promise<void> {
-  const testData = {
-    documentNumber: "123456789", // Sample 9-digit document number
-    birthDate: "900101",         // Sample birth date YYMMDD
-    expiryDate: "300101"         // Sample expiry date YYMMDD
-  };
-
-  console.log('Testing NFC with sample data:', testData);
-
-  const result = await startReading(
-    testData.documentNumber,
-    testData.birthDate,
-    testData.expiryDate
-  );
-
-  console.log('Test result:', result);
-}
-
-/**
- * Test secure random generation
- */
-export async function testSecureRandom(): Promise<void> {
-  console.log('Testing secure random generation...');
-
-  try {
-    const randomHex8 = await generateSecureRandomHex(8);
-    const randomHex16 = await generateSecureRandomHex(16);
-
-    console.log('Random 8 bytes:', randomHex8);
-    console.log('Random 16 bytes:', randomHex16);
-    console.log('Secure random test successful');
-  } catch (error) {
-    console.error('Secure random test failed:', error);
-  }
-}
-
-/**
- * Validate MRZ data format
- */
-export function validateMRZFormat(documentNumber: string, birthDate: string, expiryDate: string): boolean {
-  try {
-    prepareMRZData(documentNumber, birthDate, expiryDate);
-    return true;
-  } catch (error) {
-    console.error('MRZ validation failed:', error);
-    return false;
   }
 }
 
@@ -602,8 +574,5 @@ export function validateMRZFormat(documentNumber: string, birthDate: string, exp
 
 export default {
   startReading,
-  _cleanUp,
-  testNFC,
-  testSecureRandom,
-  validateMRZFormat
+  _cleanUp
 };
