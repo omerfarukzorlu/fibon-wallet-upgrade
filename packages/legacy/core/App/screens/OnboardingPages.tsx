@@ -17,7 +17,7 @@ import { useStore } from '../contexts/store'
 import { GenericFn } from '../types/fn'
 import { OnboardingStackParams, Screens } from '../types/navigators'
 import { testIdWithKey } from '../utils/testable'
-
+import { Image, ImageBackground, ImageSourcePropType } from 'react-native';
 import { useTheme } from '../contexts/theme'
 
 import { OnboardingStyleSheet } from './Onboarding'
@@ -68,6 +68,13 @@ export const createStyles = (OnboardingTheme: any) => {
     bodyText: {
       ...OnboardingTheme.bodyText,
       flexShrink: 1,
+    },
+    image: {
+        flex: 1,
+        justifyContent: 'center',
+    },
+    image_style: {
+        opacity: 0.3
     },
     point: {
       flexDirection: 'row',
