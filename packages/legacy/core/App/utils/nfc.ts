@@ -3,6 +3,16 @@ import CryptoJS from 'crypto-js';
 import NfcManager, { NfcTech } from 'react-native-nfc-manager';
 import { Platform } from 'react-native';
 
+// React Native için güvenli rastgele sayı üretimi
+let secureRandom: any;
+try {
+  // React Native Crypto modülünü dene
+  secureRandom = require('react-native-randombytes');
+} catch (e) {
+  console.warn('react-native-randombytes not available, using fallback');
+  secureRandom = null;
+}
+
 // ==================== TYPES ====================
 interface NFCResponse {
   success: boolean;
@@ -39,6 +49,58 @@ const CRYPTO_SETTINGS = {
   IV: "0000000000000000",
   PADDING: CryptoJS.pad.NoPadding
 };
+
+// ==================== SECURE RANDOM FUNCTIONS ====================
+
+/**
+ * Generate secure random bytes - React Native compatible
+ */
+function generateSecureRandomBytes(length: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    if (secureRandom && secureRandom.randomBytes) {
+      // Use react-native-randombytes if available
+      secureRandom.randomBytes(length, (error: any, bytes: any) => {
+        if (error) {
+          console.warn('secureRandom error, using fallback:', error);
+          resolve(generateFallbackRandomBytes(length));
+        } else {
+          resolve(Buffer.from(bytes));
+        }
+      });
+    } else {
+      // Fallback to crypto-js random
+      resolve(generateFallbackRandomBytes(length));
+    }
+  });
+}
+
+/**
+ * Fallback random generation using crypto-js
+ */
+function generateFallbackRandomBytes(length: number): Buffer {
+  console.log('Using fallback random generation');
+
+  // Use crypto-js for random generation
+  const randomWords = CryptoJS.lib.WordArray.random(length);
+  const randomHex = randomWords.toString(CryptoJS.enc.Hex);
+
+  // Add additional entropy from timestamp and Math.random
+  const timestamp = Date.now().toString(16);
+  const mathRandom = Math.random().toString(16).substring(2);
+  const combined = randomHex + timestamp + mathRandom;
+
+  // Take only needed bytes
+  const finalHex = combined.substring(0, length * 2);
+  return Buffer.from(finalHex, 'hex');
+}
+
+/**
+ * Generate secure random hex string
+ */
+async function generateSecureRandomHex(length: number): Promise<string> {
+  const bytes = await generateSecureRandomBytes(length);
+  return bytes.toString('hex').toUpperCase();
+}
 
 // ==================== UTILITY FUNCTIONS ====================
 
@@ -289,9 +351,9 @@ async function performBAC(mrzData: MRZData, rndIC: string): Promise<{ ksEnc: str
 
   console.log('Derived keys - kEnc:', kEnc, 'kMac:', kMac);
 
-  // Generate random number for terminal
-  const rndIFD = CryptoJS.lib.WordArray.random(8).toString(CryptoJS.enc.Hex).toUpperCase();
-  const kIFD = CryptoJS.lib.WordArray.random(16).toString(CryptoJS.enc.Hex).toUpperCase();
+  // Generate random numbers using secure random
+  const rndIFD = await generateSecureRandomHex(8);
+  const kIFD = await generateSecureRandomHex(16);
 
   console.log('Generated rndIFD:', rndIFD, 'kIFD:', kIFD);
 
@@ -450,17 +512,35 @@ export async function startReading(
 }
 
 /**
- * Clean up NFC resources
+ * Clean up NFC resources - Fixed version
  */
 export async function _cleanUp(): Promise<void> {
   console.log('Cleaning up NFC resources...');
 
   try {
-    await NfcManager.cancelTechnologyRequest();
-    await NfcManager.stop();
+    // Check if cancelTechnologyRequest exists
+    if (NfcManager.cancelTechnologyRequest && typeof NfcManager.cancelTechnologyRequest === 'function') {
+      await NfcManager.cancelTechnologyRequest();
+      console.log('Technology request cancelled');
+    } else {
+      console.warn('cancelTechnologyRequest not available');
+    }
+
+    // Alternative cleanup methods
+    try {
+      // Try different cleanup methods
+      if (NfcManager.unregisterTagEvent && typeof NfcManager.unregisterTagEvent === 'function') {
+        await NfcManager.unregisterTagEvent();
+        console.log('Tag event unregistered');
+      }
+    } catch (altError) {
+      console.warn('Alternative cleanup failed:', altError);
+    }
+
     console.log('NFC cleanup completed');
   } catch (error) {
     console.warn('NFC cleanup error:', error);
+    // Don't throw error, just log it
   }
 }
 
@@ -488,6 +568,24 @@ export async function testNFC(): Promise<void> {
 }
 
 /**
+ * Test secure random generation
+ */
+export async function testSecureRandom(): Promise<void> {
+  console.log('Testing secure random generation...');
+
+  try {
+    const randomHex8 = await generateSecureRandomHex(8);
+    const randomHex16 = await generateSecureRandomHex(16);
+
+    console.log('Random 8 bytes:', randomHex8);
+    console.log('Random 16 bytes:', randomHex16);
+    console.log('Secure random test successful');
+  } catch (error) {
+    console.error('Secure random test failed:', error);
+  }
+}
+
+/**
  * Validate MRZ data format
  */
 export function validateMRZFormat(documentNumber: string, birthDate: string, expiryDate: string): boolean {
@@ -506,5 +604,6 @@ export default {
   startReading,
   _cleanUp,
   testNFC,
+  testSecureRandom,
   validateMRZFormat
 };
