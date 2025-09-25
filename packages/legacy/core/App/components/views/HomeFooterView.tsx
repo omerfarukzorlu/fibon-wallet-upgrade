@@ -7,6 +7,7 @@ import { useTheme } from '../../contexts/theme'
 import Button, { ButtonType } from '../buttons/Button'
 import { useOpenIDCredentials } from '../../modules/openid/context/OpenIDCredentialRecordProvider'
 import { AppleCard } from 'react-native-apple-card-views';
+import { CredentialStackParams, HomeStackParams, Screens } from '../../types/navigators'
 
 const offset = 25
 
