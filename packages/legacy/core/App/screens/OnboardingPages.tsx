@@ -100,15 +100,14 @@ const CustomPages = (onTutorialCompleted: GenericFn, OnboardingTheme: any) => {
     <>
       <ScrollView style={{ padding: 20 }}>
         <View style={{ alignItems: 'center' }}>
-          <Assets.svg.secureImage {...imageDisplayOptions} />
+          <SecureImage {...imageDisplayOptions} />
         </View>
         <View style={{ marginBottom: 20 }}>
           <Text style={styles.headerText} testID={testIdWithKey('HeaderText')}>
-            Ornare suspendisse sed nisi lacus
+            Take a photo of yourself
           </Text>
           <Text style={[styles.bodyText, { marginTop: 25 }]} testID={testIdWithKey('BodyText')}>
-            Enim facilisis gravida neque convallis a cras semper. Suscipit adipiscing bibendum est ultricies integer
-            quis auctor elit sed.
+            You'll be asked to take a photo of yourself using your device. This checks the document belongs to you.
           </Text>
         </View>
       </ScrollView>
