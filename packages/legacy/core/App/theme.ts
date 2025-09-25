@@ -883,6 +883,12 @@ export const DialogTheme = {
 const LoadingTheme = {
   backgroundColor: ColorPallet.brand.primary,
 }
+const PINEnterTheme = {
+  image: {
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+}
 const PINInputTheme = {
   cell: {
     backgroundColor: ColorPallet.brand.secondaryBackground,
