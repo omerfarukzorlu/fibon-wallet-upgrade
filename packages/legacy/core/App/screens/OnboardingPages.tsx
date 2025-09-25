@@ -7,6 +7,12 @@ import { SvgProps } from 'react-native-svg'
 
 import CredentialList from '../assets/img/credential-list.svg'
 import ScanShare from '../assets/img/scan-share.svg'
+import SecureImage from '../assets/img/selfie.svg'
+import IdCard from '../assets/img/id-card.svg'
+import Scan from '../assets/img/scan.svg'
+import ScanFace from '../assets/img/scan-face.svg'
+
+
 import Button, { ButtonType } from '../components/buttons/Button'
 import { DispatchAction } from '../contexts/reducers/store'
 import { useStore } from '../contexts/store'
