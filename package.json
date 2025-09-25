@@ -1,0 +1,69 @@
+{
+  "name": "aries-bifold-root",
+  "private": true,
+  "license": "Apache-2.0",
+  "workspaces": [
+    "packages/*",
+    "packages/legacy/core",
+    "packages/legacy/app"
+  ],
+  "repository": {
+    "url": "https://github.com/hyperledger/aries-mobile-agent-react-native",
+    "type": "git"
+  },
+  "scripts": {
+    "clean": "lerna run clean",
+    "build": "lerna run build",
+    "prettier": "prettier --ignore-path .gitignore '**/*.+(js|jsx|json|ts|tsx|md|yml|yaml)'",
+    "test": "cd packages/legacy/core && TZ=GMT yarn test",
+    "lint": "eslint --color .",
+    "pre-commit-lint:core": "cd packages/legacy/core && yarn run pre-commit-lint",
+    "pre-commit-lint": "run-s pre-commit-lint:core",
+    "typecheck:core": "cd packages/legacy/core && yarn run typecheck",
+    "typecheck": "run-s typecheck:core",
+    "next-version-bump": "ts-node ./scripts/get-next-bump.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^8.56.0",
+    "@react-native-community/eslint-config": "^3.2.0",
+    "@types/conventional-recommended-bump": "^6.1.0",
+    "@types/eslint__js": "^8.42.3",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "conventional-changelog-conventionalcommits": "^5.0.0",
+    "conventional-recommended-bump": "^6.1.0",
+    "eslint": "^8.56.0",
+    "eslint-import-resolver-typescript": "^3.6.1",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-jest": "^28.8.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "eslint-plugin-react": "^7.35.0",
+    "eslint-plugin-react-hooks": "^4.6.2",
+    "lerna": "^6.6.2",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^2.8.4",
+    "ts-node": "^10.0.0",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^7.18.0"
+  },
+  "engines": {
+    "node": ">=18.18.2 <20.0.0",
+    "yarn": "^3.3.1"
+  },
+  "resolutions": {
+    "typescript": "^5.0.4",
+    "tsyringe": "4.8.0",
+    "react-native": "0.72.5",
+    "@types/react": "^18.0.24",
+    "@types/react-dom": "^18.0.24",
+    "@react-navigation/core": "6.1.0",
+    "@react-navigation/native": "6.0.6",
+    "@react-navigation/stack": "6.0.11",
+    "@types/node": "16.9.6",
+    "@credo-ts/react-hooks": "patch:@credo-ts/react-hooks@npm%3A0.6.0#./.yarn/patches/@credo-ts-react-hooks-npm-0.6.0-3c59ce13d2.patch",
+    "@sphereon/pex": "patch:@sphereon/pex@npm%3A3.3.3#./.yarn/patches/@sphereon-pex-npm-3.3.3-144d9252ec.patch",
+    "@hyperledger/indy-vdr-react-native@0.2.2": "patch:@hyperledger/indy-vdr-react-native@npm%3A0.2.2#./.yarn/patches/@hyperledger-indy-vdr-react-native-npm-0.2.2-627d424b96.patch",
+    "@hyperledger/indy-vdr-shared@0.2.2": "patch:@hyperledger/indy-vdr-shared@npm%3A0.2.2#./.yarn/patches/@hyperledger-indy-vdr-shared-npm-0.2.2-b989282fc6.patch"
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+}
