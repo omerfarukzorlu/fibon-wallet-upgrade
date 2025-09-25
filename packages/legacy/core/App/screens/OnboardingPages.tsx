@@ -7,12 +7,6 @@ import { SvgProps } from 'react-native-svg'
 
 import CredentialList from '../assets/img/credential-list.svg'
 import ScanShare from '../assets/img/scan-share.svg'
-import SecureImage from '../assets/img/selfie.svg'
-import IdCard from '../assets/img/id-card.svg'
-import Scan from '../assets/img/scan.svg'
-import ScanFace from '../assets/img/scan-face.svg'
-
-
 import Button, { ButtonType } from '../components/buttons/Button'
 import { DispatchAction } from '../contexts/reducers/store'
 import { useStore } from '../contexts/store'
@@ -101,18 +95,19 @@ const CustomPages = (onTutorialCompleted: GenericFn, OnboardingTheme: any) => {
   return (
     <>
       <ScrollView style={{ padding: 20 }}>
-                      <View style={{ alignItems: 'center' }}>
-                          <Assets.svg.secureImage {...imageDisplayOptions} />
-                      </View>
-                      <View style={{ marginBottom: 20 }}>
-                          <Text style={[styles.headerText, { fontSize: 18 }]} testID={testIdWithKey('HeaderText')}>
-                              Take a photo of yourself
-                          </Text>
-                          <Text style={[styles.bodyText, { marginTop: 25 }]} testID={testIdWithKey('BodyText')}>
-                              You'll be asked to take a photo of yourself using your device. This checks the document belongs to you.
-                          </Text>
-                      </View>
-                  </ScrollView>
+        <View style={{ alignItems: 'center' }}>
+          <Assets.svg.secureImage {...imageDisplayOptions} />
+        </View>
+        <View style={{ marginBottom: 20 }}>
+          <Text style={styles.headerText} testID={testIdWithKey('HeaderText')}>
+            Ornare suspendisse sed nisi lacus
+          </Text>
+          <Text style={[styles.bodyText, { marginTop: 25 }]} testID={testIdWithKey('BodyText')}>
+            Enim facilisis gravida neque convallis a cras semper. Suscipit adipiscing bibendum est ultricies integer
+            quis auctor elit sed.
+          </Text>
+        </View>
+      </ScrollView>
       <View style={{ marginTop: 'auto', margin: 20 }}>
         <Button
           title={t('Global.GetStarted')}
@@ -128,26 +123,16 @@ const CustomPages = (onTutorialCompleted: GenericFn, OnboardingTheme: any) => {
 
 const guides: Array<{ image: React.FC<SvgProps>; title: string; body: string; devModeListener?: boolean }> = [
   {
-          head: IdCard,
-          title: 'Verify Your Identity',
-          body: 'Use this app to confirm your identity. You\'ll need your passport or national identity cart',
-          devModeListener: true,
-      },
-      {
-          head: Scan,
-          title: 'Scan your document',
-          body: 'You\'ll be asked to scan the personal details on your passport or national identity card.'
-      },
-      {
-          head: ScanShare,
-          title: 'Read your document\'s information',
-          body: 'You\'ll be asked to place your device on your passport or national identity card.This will check the electronic information stored in it, so we know it\'s genuine.'
-      },
-      {
-          head: ScanFace,
-          title: 'Scan your face',
-          body: 'You\'ll be asked to scan your face using your phone.This protects your identity.'
-      },
+    image: CredentialList,
+    title: 'Lorem ipsum dolor sit amet',
+    body: 'Ipsum faucibus vitae aliquet nec ullamcorper sit amet risus.',
+    devModeListener: true,
+  },
+  {
+    image: ScanShare,
+    title: 'Excepteur sint occaecat ',
+    body: 'Mollis aliquam ut porttitor leo a diam sollicitudin tempor.',
+  },
 ]
 
 export const createPageWith = (

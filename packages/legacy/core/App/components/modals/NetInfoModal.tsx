@@ -19,7 +19,7 @@ const NetInfoModal: React.FC<NetInfoModalProps> = ({ visible, onSubmit = () => n
     <>
       {visible && (
         <SafeAreaView>
-          
+
         </SafeAreaView>
       )}
     </>
