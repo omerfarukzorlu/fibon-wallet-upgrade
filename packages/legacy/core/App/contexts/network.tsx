@@ -20,7 +20,7 @@ export const NetworkProvider: React.FC<React.PropsWithChildren> = ({ children })
   const [isNetInfoModalDisplayed, setIsNetInfoModalDisplayed] = useState<boolean>(false)
 
   const displayNetInfoModal = () => {
-    setIsNetInfoModalDisplayed(true)
+    setIsNetInfoModalDisplayed(false)
   }
 
   const hideNetInfoModal = () => {
@@ -33,9 +33,9 @@ export const NetworkProvider: React.FC<React.PropsWithChildren> = ({ children })
 
   const assertNetworkConnected = () => {
     const isConnected = silentAssertConnectedNetwork()
-    if (!isConnected) {
+    /* if (!isConnected) {
       displayNetInfoModal()
-    }
+    } */
 
     return isConnected
   }
