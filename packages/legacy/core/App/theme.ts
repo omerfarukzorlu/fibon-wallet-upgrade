@@ -977,9 +977,11 @@ export const Assets = {
   },
   img: {
     logoPrimary: {
-      src: 'https://fibon.io/assets/img/logo-large-white.png',
-      height: 100,
-      width: 100,
+      src: require('./assets/img/logo-large.png'),
+      aspectRatio: 1,
+      height: '33%',
+      width: '33%',
+      resizeMode: 'contain',
     },
     logoSecondary: {
       src: require('./assets/img/logo-large.png'),
