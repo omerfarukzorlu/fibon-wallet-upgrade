@@ -12,9 +12,10 @@ const offset = 25
 
 interface HomeFooterViewProps {
   children?: any
+  navigation?: NavigationProp<any>; // Opsiyonel olarak ekledik
 }
 
-const HomeFooterView: React.FC<HomeFooterViewProps> = ({ children }) => {
+const HomeFooterView: React.FC<HomeFooterViewProps> = ({ children, navigation }) => {
   const { openIdState } = useOpenIDCredentials()
   const { w3cCredentialRecords } = openIdState
   const credentials = [

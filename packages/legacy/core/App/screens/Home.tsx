@@ -16,7 +16,7 @@ import { TourID } from '../types/tour'
 
 type HomeProps = StackScreenProps<HomeStackParams, Screens.Home>
 
-const Home: React.FC<HomeProps> = () => {
+const Home: React.FC<HomeProps> = ({ navigation }) => {
   const [
     HomeHeaderView,
     NoNewUpdates,
@@ -136,7 +136,7 @@ const Home: React.FC<HomeProps> = () => {
         decelerationRate="fast"
         ListEmptyComponent={NoNewUpdates}
         ListHeaderComponent={() => <HomeHeaderView />}
-        ListFooterComponent={() => <HomeFooterView />}
+        ListFooterComponent={() => <HomeFooterView navigation={navigation}/>}
         data={notifications}
         keyExtractor={(_, i) => i.toString()}
         renderItem={({ item, index }) => (
