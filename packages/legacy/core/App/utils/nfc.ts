@@ -11,9 +11,9 @@ const bigInt = require("big-integer")
 // ==================== TYPES ====================
 interface NFCResponse {
   success?: boolean;
-  isSuccess?: boolean;
+  isSuccess: boolean;
   data?: any;
-  error?: string;
+  error?: number;
   errorMessage?: string;
   documentNumber?: string;
   birthDate?: string;
@@ -31,11 +31,8 @@ interface NFCResponse {
   byte_array_image?: any;
 }
 
-// ==================== UTILITY FUNCTIONS FROM ORIGINAL ====================
+// ==================== UTILITY FUNCTIONS ====================
 
-/**
- * Convert hex string to ASCII (from original code)
- */
 function hex_to_ascii(hex: string): string {
   let ascii = "";
   for (let i = 0; i < hex.length; i += 2) {
@@ -44,9 +41,6 @@ function hex_to_ascii(hex: string): string {
   return ascii;
 }
 
-/**
- * Convert hex to bytes array (from original code)
- */
 function hexToBytes(hex: string): number[] {
   const bytes: number[] = [];
   for (let i = 0; i < hex.length; i += 2) {
@@ -55,18 +49,12 @@ function hexToBytes(hex: string): number[] {
   return bytes;
 }
 
-/**
- * Convert bytes to hex string (from original code)
- */
 function toHexString(bytes: number[]): string {
   return Array.from(bytes, function(byte) {
     return ("0" + (byte & 0xff).toString(16)).slice(-2);
   }).join("").toUpperCase();
 }
 
-/**
- * Calculate check digit (from original code)
- */
 function checkdigitCalc(input: string): number {
   let sum = 0;
   let weight = 0;
@@ -90,22 +78,15 @@ function checkdigitCalc(input: string): number {
   return sum % 10;
 }
 
-/**
- * Get ENC and MAC keys (from original code)
- */
 function get_ENC_MAC(seed: string): { k_enc: string; k_mac: string } {
   const seedWithCounter1 = seed.concat("00000001");
   const hash1 = CryptoJS.SHA1(CryptoJS.enc.Hex.parse(seedWithCounter1)).toString(CryptoJS.enc.Hex);
-  hash1.toUpperCase();
-
   const kenc1 = hash1.substring(0, 16);
   const kenc2 = hash1.substring(16, 32);
   const k_enc = kenc1.concat(kenc2);
 
   const seedWithCounter2 = seed.concat("00000002");
   const hash2 = CryptoJS.SHA1(CryptoJS.enc.Hex.parse(seedWithCounter2)).toString(CryptoJS.enc.Hex);
-  hash2.toUpperCase();
-
   const kmac1 = hash2.substring(0, 16);
   const kmac2 = hash2.substring(16, 32);
   const k_mac = kmac1.concat(kmac2);
@@ -113,9 +94,6 @@ function get_ENC_MAC(seed: string): { k_enc: string; k_mac: string } {
   return { k_enc, k_mac };
 }
 
-/**
- * 3DES Encryption (from original code)
- */
 function DES3Encrypt(data: string, key: string): string {
   const iv = CryptoJS.enc.Hex.parse("00000000");
   const config = {
@@ -133,9 +111,6 @@ function DES3Encrypt(data: string, key: string): string {
   return encrypted.ciphertext.toString(CryptoJS.enc.Hex).toUpperCase();
 }
 
-/**
- * 3DES Decryption (from original code)
- */
 function DES3Decrypt(encryptedData: string, key: string): string {
   const iv = CryptoJS.enc.Hex.parse("00000000");
   const config = {
@@ -144,18 +119,24 @@ function DES3Decrypt(encryptedData: string, key: string): string {
     padding: CryptoJS.pad.NoPadding,
   };
 
-  const encryptedObj = {
-    ciphertext: CryptoJS.enc.Hex.parse(encryptedData)
-  };
+  let encrypted;
+  if (typeof encryptedData === 'string') {
+    encrypted = CryptoJS.enc.Hex.parse(encryptedData);
+  } else {
+    encrypted = encryptedData;
+  }
 
-  const decrypted = CryptoJS.TripleDES.decrypt(encryptedObj, CryptoJS.enc.Hex.parse(key), config);
+  encrypted = CryptoJS.enc.Base64.stringify(encrypted);
+
+  const decrypted = CryptoJS.TripleDES.decrypt(
+    encrypted,
+    CryptoJS.enc.Hex.parse(key),
+    config
+  );
 
   return decrypted.toString(CryptoJS.enc.Hex).toUpperCase();
 }
 
-/**
- * MAC ISO 9797 Algorithm 3 (from original code)
- */
 function macIso9797_alg3(key: string, data: string, padding: string): string {
   const keyLength = key.length / 2;
   let key1 = key.substring(0, 16);
@@ -188,9 +169,6 @@ function macIso9797_alg3(key: string, data: string, padding: string): string {
   return mac;
 }
 
-/**
- * XOR two hex strings (improved version)
- */
 function xor2(hex1: string, hex2: string): string {
   const buffer1 = Buffer.from(hex1, 'hex');
   const buffer2 = Buffer.from(hex2, 'hex');
@@ -198,18 +176,15 @@ function xor2(hex1: string, hex2: string): string {
   return result.toString('hex').toUpperCase();
 }
 
-/**
- * Hex to decimal conversion (from original code)
- */
 function hex2decimal(hex: string): string {
   function addStrings(str1: string, str2: string): string {
     let carry = 0;
     let result: number[] = [];
-    str1 = str1.split("").map(Number);
-    str2 = str2.split("").map(Number);
+    const arr1 = str1.split("").map(Number);
+    const arr2 = str2.split("").map(Number);
 
-    while (str1.length || str2.length) {
-      const sum = (str1.pop() || 0) + (str2.pop() || 0) + carry;
+    while (arr1.length || arr2.length) {
+      const sum = (arr1.pop() || 0) + (arr2.pop() || 0) + carry;
       result.unshift(sum < 10 ? sum : sum - 10);
       carry = sum < 10 ? 0 : 1;
     }
@@ -230,9 +205,6 @@ function hex2decimal(hex: string): string {
   return decimal;
 }
 
-/**
- * Decimal to hex conversion (from original code)
- */
 function dec2hex(decimal: string): string {
   const digits = decimal.toString().split("");
   const hexDigits: number[] = [];
@@ -258,48 +230,35 @@ function dec2hex(decimal: string): string {
     result = "0".concat(result);
   }
 
-  return result;
+  return result.toUpperCase();
 }
 
-/**
- * Hex number increment (from original code)
- */
 function hexNumberIncrement(hex: string): string {
   const decimal = bigInt(hex2decimal(hex));
   const incremented = decimal.add("1");
   return incremented.toString(16).toUpperCase();
 }
 
-/**
- * Pad to 4 digits (from original code)
- */
 function padtofourdigit(num: number): string {
   const hexValue = num.toString(16);
   const padding = "0".repeat(4 - hexValue.length).concat(hexValue);
-  return padding;
+  return padding.toUpperCase();
 }
 
-/**
- * UnPad hex (from original code)
- */
 function unPadHex(hex: string): string {
   const index = hex.lastIndexOf("80");
+  if (index === -1) return hex;
+
   for (let i = index + 1; i < hex.length; i++) {
     if (hex.charAt(i) != "0") return hex;
   }
   return hex.substring(0, index);
 }
 
-/**
- * Calculate percentage (from original code)
- */
 function _calculatePercentage(total: number, current: number): number {
   return (current * 100) / total;
 }
 
-/**
- * Hex fixing (from original code)
- */
 function hexFixing(hex: string): number[] {
   const result = [0, 0x82, 0, 0, 0x28];
   for (let i = 0; i < hex.length; i += 2) {
@@ -310,7 +269,7 @@ function hexFixing(hex: string): number[] {
   return result;
 }
 
-// ==================== GLOBAL VARIABLES (from original code) ====================
+// ==================== GLOBAL VARIABLES ====================
 let rndIC: string;
 let kENC: string;
 let rndIFD: string;
@@ -334,41 +293,284 @@ let base64Image = "";
 let MRZ_DATA = "";
 let byteArrayImage: any = "";
 
-// ==================== MAIN NFC READING FUNCTION ====================
+// ==================== HELPER FUNCTIONS ====================
 
-/**
- * Start NFC reading process (based on original working code)
- */
+async function ApduCmd6(proApdu: string): Promise<string | false> {
+  try {
+    let resp: any;
+
+    if (Platform.OS === 'ios') {
+      resp = await NfcManager.sendCommandAPDUIOS(hexToBytes(proApdu));
+    } else {
+      resp = await NfcManager.transceive(hexToBytes(proApdu));
+    }
+
+    let responseHex: string;
+    if (Platform.OS === 'ios') {
+      responseHex = toHexString(resp.response).concat("9000");
+    } else {
+      responseHex = toHexString(resp);
+    }
+
+    const firstPart = responseHex.substring(0, 16);
+    const dataPart = firstPart.split('87').pop()?.split('01')[0] || '';
+
+    if (!isDG1Read) {
+      const firstByte = parseInt(hex2decimal(dataPart.substring(0, 2)));
+      if (firstByte <= 0x80) {
+        dataLength = firstByte;
+        o = 6;
+      } else if (firstByte === 0x81) {
+        dataLength = parseInt(hex2decimal(dataPart.substring(2, 4)));
+        o = 8;
+      } else if (firstByte === 0x82) {
+        dataLength = parseInt(hex2decimal(dataPart.substring(2, 6)));
+        o = 10;
+      } else {
+        return false;
+      }
+    } else {
+      dataLength = 0xe9;
+      o = 8;
+    }
+
+    const encryptedData = responseHex.substring(o, o + dataLength * 2 - 2).split('').join('');
+    if (dataLength > 0) {
+      sixthCmdResponseLength = dataLength - 2;
+    }
+
+    const decryptedData = DES3Decrypt(encryptedData, ksENC);
+    return decryptedData.substring(0, decryptedData.length - 2);
+
+  } catch (error) {
+    console.error('ApduCmd6 error:', error);
+    return false;
+  }
+}
+
+function parseEPassportData(): NFCResponse {
+  try {
+    let documentNumber = MRZ_DATA.substring(6, 15);
+    let birthDate = MRZ_DATA.substring(31, 37);
+    let expiryDate = MRZ_DATA.substring(39, 45);
+    let idNumber = MRZ_DATA.substring(17, 28);
+    let gender = MRZ_DATA.charAt(38);
+    let fullName = MRZ_DATA.substring(61, MRZ_DATA.length);
+
+    const nameIndex = fullName.indexOf('<<');
+    let surname = fullName.substring(0, nameIndex);
+    let name = fullName.substring(nameIndex + 2, fullName.lastIndexOf('<'));
+    name = name.split('<').join(' ');
+
+    return {
+      isSuccess: true,
+      name: name,
+      surname: surname,
+      id_number: idNumber,
+      document_number: documentNumber,
+      birth_date: birthDate,
+      expiry_date: expiryDate,
+      gender: gender,
+      base64Image: base64Image,
+      byte_array_image: byteArrayImage
+    };
+  } catch (error) {
+    return {
+      isSuccess: false,
+      error: 0x7d5,
+      errorMessage: "MRZ verisi ayrıştırılırken hata oluştu."
+    };
+  }
+}
+
+async function readDataGroup(dataGroup: string): Promise<boolean> {
+  try {
+    // Select file
+    const cmdHeader = "0CB0";
+    const pathData = dataGroup.concat("0102");
+    const encryptedPathData = DES3Encrypt(pathData, ksENC);
+    const do87 = "870901".concat(encryptedPathData);
+    DO87 = do87;
+
+    const m = cmdHeader.concat("800000000000").concat(do87);
+    SSC = hexNumberIncrement(SSC);
+
+    const n = SSC.concat(m);
+    const cc = macIso9797_alg3(ksMAC, n, "80");
+    const ccByteLength = dec2hex((cc.length / 2).toString());
+    const do8e = "8E".concat(ccByteLength).concat(cc);
+    const protectedApduRight = do87.concat(do8e).concat("00");
+    const parLength = dec2hex(((protectedApduRight.length - 2) / 2).toString());
+    const protectedAPDU = cmdHeader.concat(parLength).concat(protectedApduRight);
+
+    let resp: any;
+    if (Platform.OS === 'ios') {
+      resp = await NfcManager.sendCommandAPDUIOS(hexToBytes(protectedAPDU));
+    } else {
+      resp = await NfcManager.transceive(hexToBytes(protectedAPDU));
+    }
+
+    let responseHex: string;
+    if (Platform.OS === 'ios') {
+      responseHex = toHexString(resp.response).toUpperCase();
+    } else {
+      responseHex = toHexString(resp.slice(0, -2)).toUpperCase();
+    }
+
+    rapdu = responseHex;
+    SSC = hexNumberIncrement(SSC);
+
+    // Verify MAC
+    const do99 = "99029000";
+    const k = SSC.concat(do99);
+    const cc_ = macIso9797_alg3(ksMAC, k, "80");
+
+    if (!rapdu.includes(cc_)) {
+      return false;
+    }
+
+    // Read binary data
+    const cmdHeader2 = "0CB000000D";
+    const do97 = "970104";
+    const m2 = cmdHeader2.concat(do97);
+
+    SSC = hexNumberIncrement(SSC);
+    const n2 = SSC.concat(m2);
+    const cc2 = macIso9797_alg3(ksMAC, n2, "80");
+    const ccByteLength2 = dec2hex((cc2.length / 2).toString());
+    const do8e2 = "8E".concat(ccByteLength2).concat(cc2);
+    const protectedApdu2 = "0CB000000D".concat(do97).concat(do8e2).concat("00");
+
+    if (Platform.OS === 'ios') {
+      resp = await NfcManager.sendCommandAPDUIOS(hexToBytes(protectedApdu2));
+    } else {
+      resp = await NfcManager.transceive(hexToBytes(protectedApdu2));
+    }
+
+    if (Platform.OS === 'ios') {
+      responseHex = toHexString(resp.response).toUpperCase();
+    } else {
+      responseHex = toHexString(resp.slice(0, -2)).toUpperCase();
+    }
+
+    responseHex = responseHex.concat("9000");
+    SSC = hexNumberIncrement(SSC);
+
+    const k2 = SSC.concat(do87).concat("99029000");
+    const cc_2 = macIso9797_alg3(ksMAC, k2, "80");
+    const do87_response = responseHex.substring(6, 22);
+    let decryptedData = DES3Decrypt(do87_response, ksENC);
+    decryptedData = unPadHex(decryptedData);
+
+    const dataLengthHex = decryptedData.substring(2, 4);
+    dataLength = parseInt(hex2decimal(dataLengthHex)) + 2;
+
+    let totalLength = 0;
+    if (decryptedData.substring(0, 2) === '60' || decryptedData.substring(0, 2) === '61') {
+      totalLength = parseInt(hex2decimal(decryptedData.substring(2, 4)));
+    } else if (decryptedData.substring(0, 2) === '75') {
+      totalLength = parseInt(hex2decimal(decryptedData.substring(4, decryptedData.length)));
+    }
+
+    const length = totalLength - 4;
+    let messageadded = '';
+    let readed = 4;
+
+    // Read data in chunks
+    while (readed <= length) {
+      const cmdHeader3 = "0CB0".concat(padtofourdigit(readed)).concat("800000000000");
+      let hexLength: string;
+
+      if (length - readed > 0x100) {
+        hexLength = "00";
+      } else {
+        hexLength = (length - readed).toString(16).toUpperCase();
+      }
+
+      const do97_chunk = "9701".concat(hexLength);
+      const do97cmdheader = cmdHeader3.concat(do97_chunk);
+
+      SSC = hexNumberIncrement(SSC);
+      const N = SSC.concat(do97cmdheader);
+      const cc_chunk = macIso9797_alg3(ksMAC, N, "80");
+      const do8e_chunk = "8E08".concat(cc_chunk);
+      const apduright = do97_chunk.concat(do8e_chunk);
+
+      let apdurightlength = (apduright.length / 2).toString(16).toUpperCase();
+      if (apdurightlength.length === 1) {
+        apdurightlength = "0".concat(apdurightlength);
+      }
+
+      const proApdu = cmdHeader3.substring(0, 8).concat(apdurightlength).concat(apduright).concat("00");
+      const msg = await ApduCmd6(proApdu);
+
+      if (msg === false) {
+        return false;
+      }
+
+      messageadded = messageadded.concat(msg);
+      readed = readed + sixthCmdResponseLength;
+      SSC = hexNumberIncrement(SSC);
+
+      const perc = _calculatePercentage(length, readed);
+      percentage = Math.floor(perc);
+    }
+
+    if (readed < length) {
+      return false;
+    }
+
+    // Process the read data
+    if (!isDG1Read) {
+      isDG1Read = true;
+      MRZ_DATA = hex_to_ascii(messageadded);
+      return true;
+    } else {
+      // This is DG2 (photo)
+      isDG1Read = false;
+      messageadded = messageadded.substring(214, messageadded.length);
+      base64Image = Buffer.from(messageadded, 'hex').toString('base64');
+      byteArrayImage = Buffer.from(messageadded, 'hex');
+      return true;
+    }
+
+  } catch (error) {
+    console.error('readDataGroup error:', error);
+    return false;
+  }
+}
+
+// ==================== MAIN FUNCTION ====================
+
 export async function startReading(
   documentNumber: string,
   birthDate: string,
   expiryDate: string
 ): Promise<NFCResponse> {
-  console.log('=== Starting NFC Reading (Revised) ===');
+  console.log('=== Starting NFC Reading ===');
   console.log('Input:', { documentNumber, birthDate, expiryDate });
 
   try {
-    // Initialize global variables
+    // Initialize
     percentage = 0;
     DATA_GROUP = "0101";
     isDG1Read = false;
+    base64Image = "";
+    MRZ_DATA = "";
+    byteArrayImage = "";
 
     // Initialize NFC
-    console.log('Initializing NFC...');
     const tech = NfcTech.IsoDep;
     await NfcManager.requestTechnology(tech, {
-      alertMessage: 'Please put your ID card on the back of the phone and do not move it until the check mark.'
+      alertMessage: 'Kimlik kartınızı telefonun arkasına yerleştirin ve işlem tamamlanana kadar hareket ettirmeyin.'
     });
 
-    // Set global variables
     DOCUMENT_NUMBER = documentNumber;
     BIRTH_DATE = birthDate;
     EXPIRY_DATE = expiryDate;
 
     // Step 1: Select ePassport application
-    console.log('Selecting ePassport application...');
     let resp: any;
-
     if (Platform.OS === 'ios') {
       resp = await NfcManager.sendCommandAPDUIOS([0x00, 0xA4, 0x04, 0x0C, 0x07, 0xA0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01]);
       resp = resp.sw1;
@@ -378,75 +580,46 @@ export async function startReading(
     }
 
     if (resp !== 0x90) {
-      throw new Error('Failed to select ePassport application');
+      throw new Error('ePassport uygulaması seçilemedi');
     }
 
     // Step 2: Get challenge
-    console.log('Getting challenge...');
     if (Platform.OS === 'ios') {
       resp = await NfcManager.sendCommandAPDUIOS([0x00, 0x84, 0x00, 0x00, 0x08]);
     } else {
       resp = await NfcManager.transceive([0x00, 0x84, 0x00, 0x00, 0x08]);
     }
 
-    // Step 3: Prepare MRZ data and keys (using original logic)
+    // Step 3: BAC Authentication
     const mrz = documentNumber + checkdigitCalc(documentNumber) + birthDate + checkdigitCalc(birthDate) + expiryDate + checkdigitCalc(expiryDate);
     const hash_mrz = CryptoJS.SHA1(mrz).toString(CryptoJS.enc.Hex);
     const k_seed = hash_mrz.substring(0, 32);
 
-    console.log('MRZ:', mrz);
-    console.log('MRZ Hash:', hash_mrz);
-    console.log('K_seed:', k_seed);
-
-    // Generate random numbers (using original fixed values for compatibility)
     rndIFD = "781723860C06C226";
 
-    // Extract rndIC from challenge response
     if (Platform.OS === 'ios') {
       rndIC = toHexString(resp.response).toUpperCase();
     } else {
       rndIC = toHexString(resp.slice(0, -2)).toUpperCase();
     }
 
-    console.log('rndIC:', rndIC);
-    console.log('rndIFD:', rndIFD);
-    console.log('kIFD:', kIFD);
-
-    // Prepare authentication data (using original logic)
     const s = rndIFD.concat(rndIC).concat(kIFD);
     const keys = get_ENC_MAC(k_seed);
     const k_enc = keys.k_enc;
     const k_mac = keys.k_mac;
 
-    console.log('s (auth data):', s);
-    console.log('k_enc:', k_enc);
-    console.log('k_mac:', k_mac);
-
     kENC = k_enc;
 
-    // Fix key for encryption (from original code)
     let fixedKeyenc = k_enc;
-    if (k_enc.length == 32) {
+    if (k_enc.length === 32) {
       fixedKeyenc = k_enc.concat(k_enc.substring(0, 16));
     }
 
-    console.log('fixedKeyenc:', fixedKeyenc);
-
-    // Encrypt authentication data
     const e_ifd = DES3Encrypt(s, fixedKeyenc);
-    console.log('e_ifd (encrypted):', e_ifd);
-
-    // Calculate MAC
     const m_ifd = macIso9797_alg3(k_mac, e_ifd, "80");
-    console.log('m_ifd (MAC):', m_ifd);
-
-    // Prepare command data
     const cmd_data = e_ifd.concat(m_ifd);
-    console.log('cmd_data:', cmd_data);
 
-    // Step 4: External Authentication
-    console.log('Performing external authentication...');
-
+    // External Authentication
     if (Platform.OS === 'ios') {
       resp = await NfcManager.sendCommandAPDUIOS({
         cla: 0x00,
@@ -458,20 +631,26 @@ export async function startReading(
         le: 0x28
       });
 
-      if (resp.sw1 != 0x90) {
-        throw new Error(`External authentication failed: SW1=${resp.sw1.toString(16)}, SW2=${resp.sw2?.toString(16) || '00'}`);
+      if (resp.sw1 !== 0x90) {
+        return {
+          isSuccess: false,
+          error: 0x7d6,
+          errorMessage: "Kimlik kartı verilen inputlarla uyumlu değil."
+        };
       }
     } else {
       resp = await NfcManager.transceive(hexFixing(cmd_data));
 
-      if (resp[resp.length - 2] != 0x90) {
-        throw new Error(`External authentication failed: SW1=${resp[resp.length - 2].toString(16)}, SW2=${resp[resp.length - 1].toString(16)}`);
+      if (resp[resp.length - 2] !== 0x90) {
+        return {
+          isSuccess: false,
+          error: 0x7d6,
+          errorMessage: "Kimlik kartı verilen inputlarla uyumlu değil."
+        };
       }
     }
 
-    console.log('External authentication successful!');
-
-    // Step 5: Process authentication response and derive session keys
+    // Process authentication response
     let responseHex: string;
     if (Platform.OS === 'ios') {
       responseHex = toHexString(resp.response).toUpperCase();
@@ -479,15 +658,9 @@ export async function startReading(
       responseHex = toHexString(resp.slice(0, -2)).toUpperCase();
     }
 
-    console.log('Auth response:', responseHex);
-
-    // Decrypt response and extract kIC
     let k_ic = DES3Decrypt(responseHex, kENC);
     k_ic = k_ic.substring(32, 64);
 
-    console.log('k_ic:', k_ic);
-
-    // Derive session keys
     const k_seed_session = xor2(kIFD, k_ic);
     const session_keys = get_ENC_MAC(k_seed_session);
     const ks_enc = session_keys.k_enc;
@@ -496,81 +669,83 @@ export async function startReading(
     ksMAC = ks_mac;
     ksENC = ks_enc;
 
-    console.log('Session keys derived - ksENC:', ks_enc, 'ksMAC:', ks_mac);
-
-    // Initialize SSC (Send Sequence Counter)
     SSC = rndIC.slice(-8).concat(rndIFD.slice(-8));
 
-    console.log('SSC initialized:', SSC);
+    console.log('BAC Authentication successful');
 
-    console.log('=== BAC Authentication Completed Successfully ===');
+    // Step 4: Read DG1 (MRZ data)
+    console.log('Reading DG1...');
+    if (!await readDataGroup("0101")) {
+      return {
+        isSuccess: false,
+        error: 0x7d2,
+        errorMessage: "Kimlik kartı Passive Authentication doğrulanamadı."
+      };
+    }
 
-    // Now we can proceed with secure messaging to read data groups
-    // For now, return success with basic info
+    // Step 5: Read DG2 (Photo)
+    console.log('Reading DG2...');
+    DATA_GROUP = "0102";
+    if (!await readDataGroup("0102")) {
+      return {
+        isSuccess: false,
+        error: 0x7d3,
+        errorMessage: "Kimlik kartı Active Authentication doğrulanamadı."
+      };
+    }
 
-    return {
-      success: true,
-      isSuccess: true,
-      documentNumber,
-      birthDate,
-      expiryDate,
-      data: {
-        message: "BAC authentication successful",
-        sessionKeys: { ksENC, ksMAC },
-        ssc: SSC
-      }
-    };
+    // Step 6: Parse and return data
+    const parsedData = parseEPassportData();
+
+    if (Platform.OS === 'ios') {
+      await NfcManager.setAlertMessageIOS('Kimlik başarıyla okundu.');
+    }
+
+    console.log('=== NFC Reading Completed Successfully ===');
+    return parsedData;
 
   } catch (error) {
     console.error('=== NFC Reading Failed ===');
     console.error('Error:', error);
 
-    let errorMessage = "Unknown error occurred";
+    let errorMessage = "Kimlik kartı ile telefon arasındaki bağlantı koptu.";
     let errorCode = 0x7d1;
 
     if (error instanceof Error) {
-      errorMessage = error.message;
-
-      // Specific error handling based on original code
-      if (error.message.includes('SW1=69, SW2=82')) {
-        errorMessage = "Kimlik karti verilen inputlarla uyumlu degil.";
+      if (error.message.includes('uyumlu değil')) {
+        errorMessage = "Kimlik kartı verilen inputlarla uyumlu değil.";
         errorCode = 0x7d6;
-      } else if (error.message.includes('APDU error')) {
-        errorMessage = "Kimlik karti ile telefon arasindaki baglanti koptu.";
-        errorCode = 0x7d1;
       }
     }
 
+    if (Platform.OS === 'ios') {
+      await NfcManager.invalidateSessionWithErrorIOS();
+    }
+
     return {
-      success: false,
       isSuccess: false,
       error: errorCode,
-      errorMessage
+      errorMessage: errorMessage
     };
   } finally {
-    // Clean up will be handled by the calling function
+    try {
+      await _cleanUp();
+    } catch (e) {
+      console.warn('Cleanup error:', e);
+    }
   }
 }
 
-/**
- * Clean up NFC resources
- */
 export async function _cleanUp(): Promise<void> {
   console.log('Cleaning up NFC resources...');
-
   try {
     if (NfcManager.cancelTechnologyRequest && typeof NfcManager.cancelTechnologyRequest === 'function') {
       await NfcManager.cancelTechnologyRequest();
-      console.log('Technology request cancelled');
     }
-
-    console.log('NFC cleanup completed');
   } catch (error) {
     console.warn('NFC cleanup error:', error);
   }
 }
-
-// ==================== EXPORTS ====================
 
 export default {
   startReading,
