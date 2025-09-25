@@ -133,16 +133,26 @@ const CustomPages = (onTutorialCompleted: GenericFn, OnboardingTheme: any) => {
 
 const guides: Array<{ image: React.FC<SvgProps>; title: string; body: string; devModeListener?: boolean }> = [
   {
-    image: CredentialList,
-    title: 'Lorem ipsum dolor sit amet',
-    body: 'Ipsum faucibus vitae aliquet nec ullamcorper sit amet risus.',
-    devModeListener: true,
-  },
-  {
-    image: ScanShare,
-    title: 'Excepteur sint occaecat ',
-    body: 'Mollis aliquam ut porttitor leo a diam sollicitudin tempor.',
-  },
+          image: IdCard,
+          title: 'Verify Your Identity',
+          body: 'Use this app to confirm your identity. You\'ll need your passport or national identity cart',
+          devModeListener: true,
+      },
+      {
+          image: Scan,
+          title: 'Scan your document',
+          body: 'You\'ll be asked to scan the personal details on your passport or national identity card.'
+      },
+      {
+          image: ScanShare,
+          title: 'Read your document\'s information',
+          body: 'You\'ll be asked to place your device on your passport or national identity card.This will check the electronic information stored in it, so we know it\'s genuine.'
+      },
+      {
+          image: ScanFace,
+          title: 'Scan your face',
+          body: 'You\'ll be asked to scan your face using your phone.This protects your identity.'
+      }
 ]
 
 export const createPageWith = (
