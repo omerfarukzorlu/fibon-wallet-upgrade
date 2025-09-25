@@ -15,7 +15,15 @@ interface NetInfoModalProps {
 const NetInfoModal: React.FC<NetInfoModalProps> = ({ visible, onSubmit = () => null }) => {
   const { t } = useTranslation()
 
-
+  return (
+    <>
+      {visible && (
+        <SafeAreaView>
+          
+        </SafeAreaView>
+      )}
+    </>
+  )
 }
 
 export default NetInfoModal
