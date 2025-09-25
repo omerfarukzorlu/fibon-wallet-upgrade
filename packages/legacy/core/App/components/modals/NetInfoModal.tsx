@@ -15,21 +15,7 @@ interface NetInfoModalProps {
 const NetInfoModal: React.FC<NetInfoModalProps> = ({ visible, onSubmit = () => null }) => {
   const { t } = useTranslation()
 
-  return (
-    <>
-      {visible && (
-        <SafeAreaView>
-          <PopupModal
-            notificationType={InfoBoxType.Error}
-            title={t('NetInfo.NoInternetConnectionTitle')}
-            description={t('NetInfo.NoInternetConnectionMessage')}
-            onCallToActionLabel={t('Global.Okay')}
-            onCallToActionPressed={() => onSubmit()}
-          ></PopupModal>
-        </SafeAreaView>
-      )}
-    </>
-  )
+
 }
 
 export default NetInfoModal
