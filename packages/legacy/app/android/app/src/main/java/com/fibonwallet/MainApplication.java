@@ -1,4 +1,4 @@
-package com.ariesbifold;
+package com.fibonwallet;
 
 import android.app.Application;
 import com.facebook.react.PackageList;

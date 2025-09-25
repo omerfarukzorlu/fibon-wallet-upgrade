@@ -93,7 +93,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.ariesbifold"
+        applicationId "com.fibonwallet"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
@@ -103,10 +103,16 @@ android {
     }
     signingConfigs {
         debug {
-            storeFile file('debug.keystore')
-            storePassword 'android'
-            keyAlias 'androiddebugkey'
-            keyPassword 'android'
+            storeFile file('fibon.keystore')
+            storePassword 'Fibon2023'
+            keyAlias 'fibon'
+            keyPassword 'Fibon2023'
+        }
+        release {
+            storeFile file('fibon.keystore')
+            storePassword 'Fibon2023'
+            keyAlias 'fibon'
+            keyPassword 'Fibon2023'
         }
     }
     buildTypes {
