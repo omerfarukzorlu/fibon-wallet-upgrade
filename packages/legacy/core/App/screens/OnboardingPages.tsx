@@ -102,7 +102,7 @@ const CustomPages = (onTutorialCompleted: GenericFn, OnboardingTheme: any) => {
     <>
       <ScrollView style={{ padding: 20 }}>
                       <View style={{ alignItems: 'center' }}>
-                          <SecureImage {...imageDisplayOptions} />
+                          <Assets.svg.secureImage {...imageDisplayOptions} />
                       </View>
                       <View style={{ marginBottom: 20 }}>
                           <Text style={[styles.headerText, { fontSize: 18 }]} testID={testIdWithKey('HeaderText')}>
@@ -130,7 +130,8 @@ const guides: Array<{ image: React.FC<SvgProps>; title: string; body: string; de
   {
           head: IdCard,
           title: 'Verify Your Identity',
-          body: 'Use this app to confirm your identity. You\'ll need your passport or national identity cart'
+          body: 'Use this app to confirm your identity. You\'ll need your passport or national identity cart',
+          devModeListener: true,
       },
       {
           head: Scan,
