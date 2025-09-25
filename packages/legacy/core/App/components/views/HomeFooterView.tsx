@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { StyleSheet, Text, View } from 'react-native'
 import { useTheme } from '../../contexts/theme'
 import { useOpenIDCredentials } from '../../modules/openid/context/OpenIDCredentialRecordProvider'
+import { AppleCard } from 'react-native-apple-card-views';
 
 const offset = 25
 
@@ -78,17 +79,37 @@ const HomeFooterView: React.FC<HomeFooterViewProps> = ({ children }) => {
 
     return (
       <>
-        <View style={styles.imageContainer}>
-          <Assets.svg.homeCenterImg {...{ width: '30%',  }} />
-        </View>
-
-        <View style={styles.messageContainer}>
-          <Text style={[HomeTheme.credentialMsg, { marginTop: offset, textAlign: 'center' }]}>{credentialMsg}</Text>
-        </View>
-
-        <View style={styles.messageContainer}>
-          <Text style={[HomeTheme.credentialMsg, { marginTop: offset, textAlign: 'center' }]}>{scanReminder}</Text>
-        </View>
+        <View style={{
+                      marginBottom: 32,
+                      paddingTop: 16,
+                      paddingBottom: 32,
+                      alignItems: 'center',
+                      justifyContent: 'center',}}>
+                  <AppleCard
+                      smallTitle="How do I add my IDs"
+                      largeTitle=""
+                      footnote=""
+                      source={require("../../assets/img/fibon-how-do.png")}
+                      backgroundStyle={{
+                          height: 200,
+                      }}
+                      onPress={() => navigation.navigate(Screens.HowDoIAddMyIDs)}
+                  />
+                  </View>
+                  <View
+                      style={{
+                          paddingTop: 0,
+                          marginTop: 'auto',
+                          margin: 100,
+                      }}
+                  >
+                      <Button
+                          title={'Add Identity Card'}
+                          accessibilityLabel={'Get Started'}
+                          onPress={() => navigation.navigate(Screens.MrzReader)}
+                          buttonType={ButtonType.Primary}
+                      />
+                  </View>
       </>
     )
   }

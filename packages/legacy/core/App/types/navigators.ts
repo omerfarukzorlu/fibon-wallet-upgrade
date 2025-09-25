@@ -15,6 +15,10 @@ export enum Screens {
   EnterPIN = 'Enter PIN',
   Home = 'Home',
   Scan = 'Scan',
+  NfcReader = 'NfcReader',
+  MrzReader = 'MrzReader',
+  HowDoIAddMyIDs = 'How Do I Add MyIDs',
+  WhatIsFibon = 'What is Fibon',
   PasteUrl = 'Paste URL',
   Credentials = 'Credentials',
   CredentialDetails = 'Credential Details',
@@ -147,6 +151,9 @@ export type CredentialStackParams = {
 
 export type HomeStackParams = {
   [Screens.Home]: undefined
+  [Screens.HowDoIAddMyIDs]: undefined
+  [Screens.MrzReader]: undefined
+  [Screens.NfcReader]: {mrz: any}
 }
 
 export type ConnectStackParams = {

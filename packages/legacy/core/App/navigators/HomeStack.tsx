@@ -7,7 +7,9 @@ import { useTheme } from '../contexts/theme'
 import HistoryMenu from '../modules/history/ui/components/HistoryMenu'
 import Home from '../screens/Home'
 import { HomeStackParams, Screens } from '../types/navigators'
-
+import MrzReader from '../screens/MrzReader'
+import HowDoIAddMyIDs from '../screens/HowDoIAddMyIDs'
+import NfcReader from '../screens/NfcReader'
 import { useDefaultStackOptions } from './defaultStackOptions'
 import { TOKENS, useServices } from '../container-api'
 
@@ -30,6 +32,28 @@ const HomeStack: React.FC = () => {
           ...ScreenOptionsDictionary[Screens.Home],
         })}
       />
+    <Stack.Screen
+            name={Screens.MrzReader}
+            component={MrzReader}
+            options={() => ({
+              headerShown: true,
+              title: t('Screens.MrzReader'),
+            })}
+          />
+          <Stack.Screen
+            name={Screens.HowDoIAddMyIDs}
+            component={HowDoIAddMyIDs}
+            options={() => ({
+              headerShown: true,
+            })}
+          />
+        <Stack.Screen
+            name={Screens.NfcReader}
+            component={NfcReader}
+            options={() => ({
+              title: t('Screens.NfcReader'),
+            })}
+          />
     </Stack.Navigator>
   )
 }
