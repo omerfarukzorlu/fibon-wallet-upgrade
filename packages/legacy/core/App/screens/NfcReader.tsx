@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, SafeAreaView, Text, TouchableOpacity, Image, View } from 'react-native';
 import Button, { ButtonType } from '../components/buttons/Button';
-import NFCReaderRN from '../utils/nfc';
+import nfc  from '../utils/nfc';
 import { CredentialStackParams, Screens, HomeStackParams } from '../types/navigators'
 import { ProgressDialog } from 'react-native-simple-dialogs';
 import { useNavigation } from '@react-navigation/core'
@@ -228,33 +228,77 @@ const NfcReader = ({ navigation }) => {
         setAlias(alias)
     }
 
-    async function scan() {
-        setLoading(true);
-        console.log(documentNumber);
-        console.log(dateOfBirth);
-        console.log(dateOfExpiry);
-        try {
-            NFCReaderRN.startReading(
-                documentNumber,
-                dateOfBirth,
-                dateOfExpiry,
-            ).then(data => {
-                console.log(data);
-                if (data.isSuccess == false) {
-                    console.log("Hata");
-                } else {
-                    console.log("Sucess");
-                    setIdData(data);
-                }
-                setIsSucessData(data.isSuccess);
-                setLoading(false);
-            });
-        } catch (ex) {
-            console.warn('ex', ex);
-            setIsSucessData(false);
-            setLoading(false);
-        }
-    }
+   async function scan() {
+       setLoading(true);
+       console.log('=== NFC SCAN STARTED ===');
+       console.log('Document Number:', documentNumber);
+       console.log('Date of Birth:', dateOfBirth);
+       console.log('Date of Expiry:', dateOfExpiry);
+
+       try {
+           // Validate input data before starting NFC
+           const isValidFormat = nfc.validateMRZFormat(documentNumber, dateOfBirth, dateOfExpiry);
+           if (!isValidFormat) {
+               console.error('Invalid MRZ format');
+               setIsSucessData(false);
+               setLoading(false);
+               return;
+           }
+
+           // Start NFC reading with the new function
+           const result = await nfc.startReading(
+               documentNumber,
+               dateOfBirth,
+               dateOfExpiry
+           );
+
+           console.log('NFC Result:', result);
+
+           if (result.success) {
+               console.log('✅ NFC Reading Success');
+               console.log('Personal Data:', result.personalData);
+
+               // Set the ID data with the new format
+               setIdData({
+                   isSuccess: true,
+                   documentNumber: result.documentNumber,
+                   birthDate: result.birthDate,
+                   expiryDate: result.expiryDate,
+                   personalData: result.personalData,
+                   photo: result.photo,
+                   data: result.data
+               });
+
+               setIsSucessData(true);
+           } else {
+               console.log('❌ NFC Reading Failed');
+               console.error('Error:', result.error);
+
+               // Set error data
+               setIdData({
+                   isSuccess: false,
+                   error: result.error || 'Unknown error occurred'
+               });
+
+               setIsSucessData(false);
+           }
+
+       } catch (error) {
+           console.error('=== NFC SCAN EXCEPTION ===');
+           console.error('Exception:', error);
+
+           // Handle exceptions
+           setIdData({
+               isSuccess: false,
+               error: error instanceof Error ? error.message : 'Unexpected error occurred'
+           });
+
+           setIsSucessData(false);
+       } finally {
+           setLoading(false);
+           console.log('=== NFC SCAN COMPLETED ===');
+       }
+   }
 
     useEffect(() => {
         if (route.params) {
