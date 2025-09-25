@@ -36,7 +36,7 @@ const NfcReader = ({ navigation }) => {
     }, []);
 
     useEffect(() => {
-        if (connectionId != "") {
+        if (connectionId != "" || connectionId != null) {
             postMasterCred(connectionId);
         }
 
