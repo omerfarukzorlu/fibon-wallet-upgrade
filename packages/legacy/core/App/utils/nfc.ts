@@ -1,4 +1,4 @@
-﻿import { Des } from "data-crypto"
+import { Des } from "data-crypto"
 import { Buffer } from "buffer"
 import CryptoJS from "crypto-js"
 import NfcManager, { NfcTech } from "react-native-nfc-manager"
@@ -29,6 +29,12 @@ interface NFCResponse {
   expiry_date?: string;
   gender?: string;
   byte_array_image?: any;
+}
+
+interface APDUResponse {
+  response?: number[];
+  sw1?: number;
+  sw2?: number;
 }
 
 // ==================== UTILITY FUNCTIONS ====================
@@ -95,7 +101,7 @@ function get_ENC_MAC(seed: string): { k_enc: string; k_mac: string } {
 }
 
 function DES3Encrypt(data: string, key: string): string {
-  const iv = CryptoJS.enc.Hex.parse("00000000");
+  const iv = CryptoJS.enc.Hex.parse("0000000000000000");
   const config = {
     iv: iv,
     mode: CryptoJS.mode.CBC,
@@ -112,7 +118,7 @@ function DES3Encrypt(data: string, key: string): string {
 }
 
 function DES3Decrypt(encryptedData: string, key: string): string {
-  const iv = CryptoJS.enc.Hex.parse("00000000");
+  const iv = CryptoJS.enc.Hex.parse("0000000000000000");
   const config = {
     iv: iv,
     mode: CryptoJS.mode.CBC,
@@ -159,7 +165,7 @@ function macIso9797_alg3(key: string, data: string, padding: string): string {
     const xorBuffer1 = Buffer.from(block, "hex");
     const xorBuffer2 = Buffer.from(mac, "hex");
     mac = xor(xorBuffer1, xorBuffer2);
-    const macHex = toHexString(mac);
+    const macHex = toHexString(Array.from(mac));
     mac = Des.encrypt(macHex, key1);
   }
 
@@ -213,7 +219,7 @@ function dec2hex(decimal: string): string {
   let remainder: number;
 
   while (digits.length) {
-    remainder = 1 * digits.shift()!;
+    remainder = 1 * parseInt(digits.shift()!);
     for (temp = 0; remainder || temp < hexDigits.length; temp++) {
       remainder += (hexDigits[temp] || 0) * 10;
       hexDigits[temp] = remainder % 16;
@@ -269,6 +275,120 @@ function hexFixing(hex: string): number[] {
   return result;
 }
 
+// ==================== FIXED MAC VERIFICATION ====================
+function verifyMAC(response: string, expectedMAC: string): boolean {
+  if (!response || !expectedMAC) {
+    console.error('MAC verification failed: missing data');
+    return false;
+  }
+
+  // MAC'in response'un sonunda olması bekleniyor (8 byte = 16 hex karakter)
+  const macLength = 16;
+  if (response.length < macLength) {
+    console.error('MAC verification failed: response too short');
+    return false;
+  }
+
+  const actualMAC = response.slice(-macLength);
+  const isValid = actualMAC.toUpperCase() === expectedMAC.toUpperCase();
+  
+  console.log('MAC Verification:', {
+    expected: expectedMAC.toUpperCase(),
+    actual: actualMAC.toUpperCase(),
+    valid: isValid
+  });
+
+  return isValid;
+}
+
+// ==================== FIXED DATE FORMATTING ====================
+function formatMRZDate(dateStr: string): string {
+  if (dateStr.length !== 6) {
+    throw new Error(`Invalid date format: ${dateStr}`);
+  }
+  
+  const year = dateStr.substring(0, 2);
+  const month = dateStr.substring(2, 4);
+  const day = dateStr.substring(4, 6);
+  
+  // Yıl belirleme mantığı: 50'den küçükse 20xx, büyükse 19xx
+  const fullYear = parseInt(year) < 50 ? `20${year}` : `19${year}`;
+  
+  return `${fullYear}-${month}-${day}`;
+}
+
+// ==================== FIXED ASN.1 LENGTH PARSING ====================
+function parseASN1Length(data: string, offset: number): { length: number, headerLength: number } {
+  const firstByte = parseInt(data.substring(offset, offset + 2), 16);
+  
+  if (firstByte < 0x80) {
+    // Short form
+    return { length: firstByte, headerLength: 1 };
+  } else if (firstByte === 0x80) {
+    // Indefinite form (not allowed in DER)
+    throw new Error('Indefinite length not allowed in DER encoding');
+  } else {
+    // Long form
+    const lengthBytes = firstByte & 0x7F;
+    if (lengthBytes === 0) {
+      throw new Error('Invalid length encoding');
+    }
+    
+    let length = 0;
+    for (let i = 0; i < lengthBytes; i++) {
+      const byteValue = parseInt(data.substring(offset + 2 + i * 2, offset + 2 + (i + 1) * 2), 16);
+      length = (length << 8) | byteValue;
+    }
+    
+    return { length, headerLength: 1 + lengthBytes };
+  }
+}
+
+// ==================== FIXED JPEG2000 EXTRACTION ====================
+function extractJPEG2000FromDG2(data: string): string {
+  try {
+    // DG2 yapısı: Tag (1 byte) + Length (variable) + Data
+    // JPEG2000 signature: FF4FFF51 veya 0000000C6A5020200D0A870A
+    
+    const jp2Signatures = [
+      'FF4FFF51',        // JPEG2000 codestream
+      '0000000C6A502020'  // JPEG2000 file format
+    ];
+    
+    let jpegStart = -1;
+    for (const signature of jp2Signatures) {
+      jpegStart = data.indexOf(signature);
+      if (jpegStart !== -1) {
+        console.log(`Found JPEG2000 signature at position: ${jpegStart}`);
+        break;
+      }
+    }
+    
+    if (jpegStart === -1) {
+      // Fallback: look for common JPEG markers
+      const jpegMarkers = ['FFD8', 'FF4F'];
+      for (const marker of jpegMarkers) {
+        jpegStart = data.indexOf(marker);
+        if (jpegStart !== -1) {
+          console.log(`Found JPEG marker at position: ${jpegStart}`);
+          break;
+        }
+      }
+    }
+    
+    if (jpegStart === -1) {
+      console.warn('No JPEG signature found, using fallback offset');
+      jpegStart = 428; // Dynamic fallback based on typical DG2 structure
+    }
+    
+    return data.substring(jpegStart);
+  } catch (error) {
+    console.error('Error extracting JPEG2000:', error);
+    // Fallback to original method
+    return data.substring(214);
+  }
+}
+
 // ==================== GLOBAL VARIABLES ====================
 let rndIC: string;
 let kENC: string;
@@ -295,48 +415,76 @@ let byteArrayImage: any = "";
 
 // ==================== HELPER FUNCTIONS ====================
 
-async function ApduCmd6(proApdu: string): Promise<string | false> {
+async function sendAPDU(command: number[]): Promise<number[]> {
   try {
     let resp: any;
-
+    
     if (Platform.OS === 'ios') {
-      resp = await NfcManager.sendCommandAPDUIOS(hexToBytes(proApdu));
+      resp = await NfcManager.sendCommandAPDUIOS(command);
+      if (resp.response) {
+        return [...resp.response, resp.sw1 || 0, resp.sw2 || 0];
+      }
+      return [resp.sw1 || 0, resp.sw2 || 0];
     } else {
-      resp = await NfcManager.transceive(hexToBytes(proApdu));
+      resp = await NfcManager.transceive(command);
+      return resp;
+    }
+  } catch (error) {
+    console.error('APDU send error:', error);
+    throw error;
+  }
+}
+
+async function ApduCmd6(proApdu: string): Promise<string | false> {
+  try {
+    const resp = await sendAPDU(hexToBytes(proApdu));
+    
+    if (resp.length < 2) {
+      console.error('Invalid APDU response length');
+      return false;
+    }
+
+    // Status word kontrol
+    const sw1 = resp[resp.length - 2];
+    const sw2 = resp[resp.length - 1];
+    
+    if (sw1 !== 0x90 || sw2 !== 0x00) {
+      console.error(`APDU error: SW1=${sw1.toString(16)} SW2=${sw2.toString(16)}`);
+      return false;
     }
 
     let responseHex: string;
     if (Platform.OS === 'ios') {
-      responseHex = toHexString(resp.response).concat("9000");
+      responseHex = toHexString(resp.slice(0, -2));
     } else {
-      responseHex = toHexString(resp);
+      responseHex = toHexString(resp.slice(0, -2));
     }
 
-    const firstPart = responseHex.substring(0, 16);
-    const dataPart = firstPart.split('87').pop()?.split('01')[0] || '';
+    const firstPart = responseHex.substring(0, Math.min(16, responseHex.length));
+    const do87Match = firstPart.match(/87(.+?)01/);
+    const dataPart = do87Match ? do87Match[1] : '';
+
+    if (!dataPart) {
+      console.error('Could not find DO87 data in response');
+      return false;
+    }
 
     if (!isDG1Read) {
-      const firstByte = parseInt(hex2decimal(dataPart.substring(0, 2)));
-      if (firstByte <= 0x80) {
-        dataLength = firstByte;
-        o = 6;
-      } else if (firstByte === 0x81) {
-        dataLength = parseInt(hex2decimal(dataPart.substring(2, 4)));
-        o = 8;
-      } else if (firstByte === 0x82) {
-        dataLength = parseInt(hex2decimal(dataPart.substring(2, 6)));
-        o = 10;
-      } else {
-        return false;
-      }
+      const parsedLength = parseASN1Length(dataPart, 0);
+      dataLength = parsedLength.length;
+      o = 6 + parsedLength.headerLength * 2;
     } else {
       dataLength = 0xe9;
       o = 8;
     }
 
-    const encryptedData = responseHex.substring(o, o + dataLength * 2 - 2).split('').join('');
+    const maxDataLength = (responseHex.length - o) / 2;
+    const actualDataLength = Math.min(dataLength * 2 - 2, maxDataLength * 2);
+    
+    const encryptedData = responseHex.substring(o, o + actualDataLength);
+    
     if (dataLength > 0) {
-      sixthCmdResponseLength = dataLength - 2;
+      sixthCmdResponseLength = Math.min(dataLength - 2, maxDataLength);
     }
 
     const decryptedData = DES3Decrypt(encryptedData, ksENC);
@@ -350,17 +498,28 @@ async function ApduCmd6(proApdu: string): Promise<string | false> {
 
 function parseEPassportData(): NFCResponse {
   try {
-    let documentNumber = MRZ_DATA.substring(6, 15);
-    let birthDate = MRZ_DATA.substring(31, 37);
-    let expiryDate = MRZ_DATA.substring(39, 45);
-    let idNumber = MRZ_DATA.substring(17, 28);
-    let gender = MRZ_DATA.charAt(38);
-    let fullName = MRZ_DATA.substring(61, MRZ_DATA.length);
+    if (!MRZ_DATA || MRZ_DATA.length < 88) {
+      throw new Error('Invalid MRZ data length');
+    }
 
-    const nameIndex = fullName.indexOf('<<');
-    let surname = fullName.substring(0, nameIndex);
-    let name = fullName.substring(nameIndex + 2, fullName.lastIndexOf('<'));
-    name = name.split('<').join(' ');
+    let documentNumber = MRZ_DATA.substring(5, 14).trim();
+    let birthDate = MRZ_DATA.substring(57, 63).trim();
+    let expiryDate = MRZ_DATA.substring(64, 70).trim();
+    let idNumber = MRZ_DATA.substring(44, 55).trim();
+    let gender = MRZ_DATA.charAt(64).trim();
+    
+    // İsim parsing'i iyileştirildi
+    const line2Start = 44;
+    const fullNameData = MRZ_DATA.substring(line2Start);
+    const nameEndIndex = fullNameData.indexOf('<<');
+    
+    if (nameEndIndex === -1) {
+      throw new Error('Invalid name format in MRZ');
+    }
+    
+    let surname = fullNameData.substring(0, nameEndIndex).replace(/</g, ' ').trim();
+    let remainingName = fullNameData.substring(nameEndIndex + 2);
+    let name = remainingName.split('<').join(' ').trim();
 
     return {
       isSuccess: true,
@@ -368,23 +527,26 @@ function parseEPassportData(): NFCResponse {
       surname: surname,
       id_number: idNumber,
       document_number: documentNumber,
-      birth_date: birthDate,
-      expiry_date: expiryDate,
+      birth_date: formatMRZDate(birthDate),
+      expiry_date: formatMRZDate(expiryDate),
       gender: gender,
       base64Image: base64Image,
       byte_array_image: byteArrayImage
     };
   } catch (error) {
+    console.error('parseEPassportData error:', error);
     return {
       isSuccess: false,
       error: 0x7d5,
-      errorMessage: "MRZ verisi ayrıştırılırken hata oluştu."
+      errorMessage: `MRZ verisi ayrıştırılırken hata oluştu: ${error}`
     };
   }
 }
 
 async function readDataGroup(dataGroup: string): Promise<boolean> {
   try {
+    console.log(`Reading data group: ${dataGroup}`);
+    
     // Select file
     const cmdHeader = "0CB0";
     const pathData = dataGroup.concat("0102");
@@ -403,29 +565,28 @@ async function readDataGroup(dataGroup: string): Promise<boolean> {
     const parLength = dec2hex(((protectedApduRight.length - 2) / 2).toString());
     const protectedAPDU = cmdHeader.concat(parLength).concat(protectedApduRight);
 
-    let resp: any;
-    if (Platform.OS === 'ios') {
-      resp = await NfcManager.sendCommandAPDUIOS(hexToBytes(protectedAPDU));
-    } else {
-      resp = await NfcManager.transceive(hexToBytes(protectedAPDU));
+    const resp = await sendAPDU(hexToBytes(protectedAPDU));
+    
+    // Status word kontrol
+    const sw1 = resp[resp.length - 2];
+    const sw2 = resp[resp.length - 1];
+    
+    if (sw1 !== 0x90 || sw2 !== 0x00) {
+      console.error(`Select file failed: SW1=${sw1.toString(16)} SW2=${sw2.toString(16)}`);
+      return false;
     }
 
-    let responseHex: string;
-    if (Platform.OS === 'ios') {
-      responseHex = toHexString(resp.response).toUpperCase();
-    } else {
-      responseHex = toHexString(resp.slice(0, -2)).toUpperCase();
-    }
-
+    const responseHex = toHexString(resp.slice(0, -2)).toUpperCase();
     rapdu = responseHex;
     SSC = hexNumberIncrement(SSC);
 
-    // Verify MAC
+    // MAC doğrulama - FİXED
     const do99 = "99029000";
     const k = SSC.concat(do99);
-    const cc_ = macIso9797_alg3(ksMAC, k, "80");
+    const expectedMAC = macIso9797_alg3(ksMAC, k, "80");
 
-    if (!rapdu.includes(cc_)) {
+    if (!verifyMAC(rapdu, expectedMAC)) {
+      console.error('MAC verification failed for select file');
       return false;
     }
 
@@ -439,54 +600,71 @@ async function readDataGroup(dataGroup: string): Promise<boolean> {
     const cc2 = macIso9797_alg3(ksMAC, n2, "80");
     const ccByteLength2 = dec2hex((cc2.length / 2).toString());
     const do8e2 = "8E".concat(ccByteLength2).concat(cc2);
-    const protectedApdu2 = "0CB000000D".concat(do97).concat(do8e2).concat("00");
+    const protectedApdu2 = cmdHeader2.concat(do97).concat(do8e2).concat("00");
 
-    if (Platform.OS === 'ios') {
-      resp = await NfcManager.sendCommandAPDUIOS(hexToBytes(protectedApdu2));
-    } else {
-      resp = await NfcManager.transceive(hexToBytes(protectedApdu2));
+    const resp2 = await sendAPDU(hexToBytes(protectedApdu2));
+    
+    const sw1_2 = resp2[resp2.length - 2];
+    const sw2_2 = resp2[resp2.length - 1];
+    
+    if (sw1_2 !== 0x90 || sw2_2 !== 0x00) {
+      console.error(`Read binary failed: SW1=${sw1_2.toString(16)} SW2=${sw2_2.toString(16)}`);
+      return false;
     }
 
-    if (Platform.OS === 'ios') {
-      responseHex = toHexString(resp.response).toUpperCase();
-    } else {
-      responseHex = toHexString(resp.slice(0, -2)).toUpperCase();
-    }
-
-    responseHex = responseHex.concat("9000");
+    let responseHex2 = toHexString(resp2.slice(0, -2)).toUpperCase();
     SSC = hexNumberIncrement(SSC);
 
     const k2 = SSC.concat(do87).concat("99029000");
-    const cc_2 = macIso9797_alg3(ksMAC, k2, "80");
-    const do87_response = responseHex.substring(6, 22);
-    let decryptedData = DES3Decrypt(do87_response, ksENC);
+    const expectedMAC2 = macIso9797_alg3(ksMAC, k2, "80");
+
+    if (!verifyMAC(responseHex2, expectedMAC2)) {
+      console.error('MAC verification failed for read binary');
+      return false;
+    }
+
+    // DO87 parsing - FİXED
+    const do87Start = responseHex2.indexOf('87');
+    if (do87Start === -1) {
+      console.error('DO87 not found in response');
+      return false;
+    }
+
+    const do87Data = responseHex2.substring(do87Start + 6, do87Start + 22);
+    let decryptedData = DES3Decrypt(do87Data, ksENC);
     decryptedData = unPadHex(decryptedData);
 
-    const dataLengthHex = decryptedData.substring(2, 4);
-    dataLength = parseInt(hex2decimal(dataLengthHex)) + 2;
+    // ASN.1 length parsing - FİXED
+    const lengthInfo = parseASN1Length(decryptedData, 2);
+    dataLength = lengthInfo.length + 2;
 
     let totalLength = 0;
-    if (decryptedData.substring(0, 2) === '60' || decryptedData.substring(0, 2) === '61') {
-      totalLength = parseInt(hex2decimal(decryptedData.substring(2, 4)));
-    } else if (decryptedData.substring(0, 2) === '75') {
-      totalLength = parseInt(hex2decimal(decryptedData.substring(4, decryptedData.length)));
+    const tag = decryptedData.substring(0, 2);
+    
+    if (tag === '60' || tag === '61') {
+      totalLength = lengthInfo.length;
+    } else if (tag === '75') {
+      // For tag 75, parse the inner length
+      const innerLengthInfo = parseASN1Length(decryptedData, 2 + lengthInfo.headerLength * 2);
+      totalLength = innerLengthInfo.length;
+    } else {
+      console.error(`Unknown tag: ${tag}`);
+      return false;
     }
 
     const length = totalLength - 4;
     let messageadded = '';
     let readed = 4;
 
+    console.log(`Total length to read: ${length}`);
+
     // Read data in chunks
-    while (readed <= length) {
+    while (readed < length) {
+      const remaining = length - readed;
+      const chunkSize = Math.min(remaining, 0xFE); // Max chunk size
+      
       const cmdHeader3 = "0CB0".concat(padtofourdigit(readed)).concat("800000000000");
-      let hexLength: string;
-
-      if (length - readed > 0x100) {
-        hexLength = "00";
-      } else {
-        hexLength = (length - readed).toString(16).toUpperCase();
-      }
-
+      const hexLength = chunkSize.toString(16).padStart(2, '0').toUpperCase();
       const do97_chunk = "9701".concat(hexLength);
       const do97cmdheader = cmdHeader3.concat(do97_chunk);
 
@@ -505,6 +683,7 @@ async function readDataGroup(dataGroup: string): Promise<boolean> {
       const msg = await ApduCmd6(proApdu);
 
       if (msg === false) {
+        console.error(`Failed to read chunk at offset ${readed}`);
         return false;
       }
 
@@ -514,9 +693,11 @@ async function readDataGroup(dataGroup: string): Promise<boolean> {
 
       const perc = _calculatePercentage(length, readed);
       percentage = Math.floor(perc);
+      console.log(`Progress: ${percentage}%`);
     }
 
     if (readed < length) {
+      console.error(`Incomplete read: ${readed}/${length}`);
       return false;
     }
 
@@ -524,13 +705,15 @@ async function readDataGroup(dataGroup: string): Promise<boolean> {
     if (!isDG1Read) {
       isDG1Read = true;
       MRZ_DATA = hex_to_ascii(messageadded);
+      console.log('DG1 (MRZ) read successfully');
       return true;
     } else {
-      // This is DG2 (photo)
+      // This is DG2 (photo) - FİXED EXTRACTION
       isDG1Read = false;
-      messageadded = messageadded.substring(214, messageadded.length);
-      base64Image = Buffer.from(messageadded, 'hex').toString('base64');
-      byteArrayImage = Buffer.from(messageadded, 'hex');
+      const jpegData = extractJPEG2000FromDG2(messageadded);
+      base64Image = Buffer.from(jpegData, 'hex').toString('base64');
+      byteArrayImage = Buffer.from(jpegData, 'hex');
+      console.log('DG2 (Photo) read successfully');
       return true;
     }
 
@@ -570,38 +753,41 @@ export async function startReading(
     EXPIRY_DATE = expiryDate;
 
     // Step 1: Select ePassport application
-    let resp: any;
-    if (Platform.OS === 'ios') {
-      resp = await NfcManager.sendCommandAPDUIOS([0x00, 0xA4, 0x04, 0x0C, 0x07, 0xA0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01]);
-      resp = resp.sw1;
-    } else {
-      resp = await NfcManager.transceive([0x00, 0xA4, 0x04, 0x0C, 0x07, 0xA0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01]);
-      resp = resp[0];
+    console.log('Selecting ePassport application...');
+    const selectResp = await sendAPDU([0x00, 0xA4, 0x04, 0x0C, 0x07, 0xA0, 0x00, 0x00, 0x02, 0x47, 0x10, 0x01]);
+    
+    const selectSW1 = selectResp[selectResp.length - 2];
+    const selectSW2 = selectResp[selectResp.length - 1];
+
+    if (selectSW1 !== 0x90 || selectSW2 !== 0x00) {
+      throw new Error(`ePassport application selection failed: SW1=${selectSW1.toString(16)} SW2=${selectSW2.toString(16)}`);
     }
 
-    if (resp !== 0x90) {
-      throw new Error('ePassport uygulaması seçilemedi');
-    }
+    console.log('ePassport application selected successfully');
 
     // Step 2: Get challenge
-    if (Platform.OS === 'ios') {
-      resp = await NfcManager.sendCommandAPDUIOS([0x00, 0x84, 0x00, 0x00, 0x08]);
-    } else {
-      resp = await NfcManager.transceive([0x00, 0x84, 0x00, 0x00, 0x08]);
+    console.log('Getting challenge from card...');
+    const challengeResp = await sendAPDU([0x00, 0x84, 0x00, 0x00, 0x08]);
+    
+    const challengeSW1 = challengeResp[challengeResp.length - 2];
+    const challengeSW2 = challengeResp[challengeResp.length - 1];
+    
+    if (challengeSW1 !== 0x90 || challengeSW2 !== 0x00) {
+      throw new Error(`Get challenge failed: SW1=${challengeSW1.toString(16)} SW2=${challengeSW2.toString(16)}`);
     }
 
     // Step 3: BAC Authentication
+    console.log('Performing BAC authentication...');
     const mrz = documentNumber + checkdigitCalc(documentNumber) + birthDate + checkdigitCalc(birthDate) + expiryDate + checkdigitCalc(expiryDate);
+    console.log('MRZ for authentication:', mrz);
+    
     const hash_mrz = CryptoJS.SHA1(mrz).toString(CryptoJS.enc.Hex);
     const k_seed = hash_mrz.substring(0, 32);
 
     rndIFD = "781723860C06C226";
+    rndIC = toHexString(challengeResp.slice(0, -2)).toUpperCase();
 
-    if (Platform.OS === 'ios') {
-      rndIC = toHexString(resp.response).toUpperCase();
-    } else {
-      rndIC = toHexString(resp.slice(0, -2)).toUpperCase();
-    }
+    console.log('Random values:', { rndIFD, rndIC });
 
     const s = rndIFD.concat(rndIC).concat(kIFD);
     const keys = get_ENC_MAC(k_seed);
@@ -619,9 +805,12 @@ export async function startReading(
     const m_ifd = macIso9797_alg3(k_mac, e_ifd, "80");
     const cmd_data = e_ifd.concat(m_ifd);
 
+    console.log('Sending external authentication...');
+
     // External Authentication
+    let authCommand: number[];
     if (Platform.OS === 'ios') {
-      resp = await NfcManager.sendCommandAPDUIOS({
+      const authResp = await NfcManager.sendCommandAPDUIOS({
         cla: 0x00,
         ins: 0x82,
         p1: 0x00,
@@ -631,33 +820,36 @@ export async function startReading(
         le: 0x28
       });
 
-      if (resp.sw1 !== 0x90) {
+      if (authResp.sw1 !== 0x90) {
         return {
           isSuccess: false,
           error: 0x7d6,
-          errorMessage: "Kimlik kartı verilen inputlarla uyumlu değil."
+          errorMessage: "Kimlik kartı verilen inputlarla uyumlu değil (BAC authentication failed)"
         };
       }
-    } else {
-      resp = await NfcManager.transceive(hexFixing(cmd_data));
 
-      if (resp[resp.length - 2] !== 0x90) {
+      var responseHex = toHexString(authResp.response).toUpperCase();
+    } else {
+      authCommand = hexFixing(cmd_data);
+      const authResp = await sendAPDU(authCommand);
+
+      const authSW1 = authResp[authResp.length - 2];
+      const authSW2 = authResp[authResp.length - 1];
+
+      if (authSW1 !== 0x90 || authSW2 !== 0x00) {
         return {
           isSuccess: false,
           error: 0x7d6,
-          errorMessage: "Kimlik kartı verilen inputlarla uyumlu değil."
+          errorMessage: `Kimlik kartı verilen inputlarla uyumlu değil (SW1=${authSW1.toString(16)} SW2=${authSW2.toString(16)})`
         };
       }
+
+      var responseHex = toHexString(authResp.slice(0, -2)).toUpperCase();
     }
+
+    console.log('External authentication successful');
 
     // Process authentication response
-    let responseHex: string;
-    if (Platform.OS === 'ios') {
-      responseHex = toHexString(resp.response).toUpperCase();
-    } else {
-      responseHex = toHexString(resp.slice(0, -2)).toUpperCase();
-    }
-
     let k_ic = DES3Decrypt(responseHex, kENC);
     k_ic = k_ic.substring(32, 64);
 
@@ -671,55 +863,87 @@ export async function startReading(
 
     SSC = rndIC.slice(-8).concat(rndIFD.slice(-8));
 
-    console.log('BAC Authentication successful');
+    console.log('Secure messaging established');
+    console.log('Session keys derived:', { 
+      ksENC: ks_enc.substring(0, 8) + '...', 
+      ksMAC: ks_mac.substring(0, 8) + '...' 
+    });
 
     // Step 4: Read DG1 (MRZ data)
-    console.log('Reading DG1...');
+    console.log('Reading DG1 (MRZ data)...');
     if (!await readDataGroup("0101")) {
       return {
         isSuccess: false,
         error: 0x7d2,
-        errorMessage: "Kimlik kartı Passive Authentication doğrulanamadı."
+        errorMessage: "DG1 okuma hatası (Passive Authentication failed)"
       };
     }
 
+    console.log('DG1 read successfully, MRZ data length:', MRZ_DATA.length);
+
     // Step 5: Read DG2 (Photo)
-    console.log('Reading DG2...');
+    console.log('Reading DG2 (Photo data)...');
     DATA_GROUP = "0102";
     if (!await readDataGroup("0102")) {
       return {
         isSuccess: false,
         error: 0x7d3,
-        errorMessage: "Kimlik kartı Active Authentication doğrulanamadı."
+        errorMessage: "DG2 okuma hatası (Photo reading failed)"
       };
     }
+
+    console.log('DG2 read successfully, photo size:', base64Image.length);
 
     // Step 6: Parse and return data
     const parsedData = parseEPassportData();
 
     if (Platform.OS === 'ios') {
-      await NfcManager.setAlertMessageIOS('Kimlik başarıyla okundu.');
+      try {
+        await NfcManager.setAlertMessageIOS('Kimlik başarıyla okundu.');
+      } catch (e) {
+        console.warn('Could not set iOS alert message:', e);
+      }
     }
 
     console.log('=== NFC Reading Completed Successfully ===');
+    console.log('Parsed data:', {
+      name: parsedData.name,
+      surname: parsedData.surname,
+      document_number: parsedData.document_number,
+      hasPhoto: !!parsedData.base64Image
+    });
+
     return parsedData;
 
   } catch (error) {
     console.error('=== NFC Reading Failed ===');
-    console.error('Error:', error);
+    console.error('Error details:', error);
 
     let errorMessage = "Kimlik kartı ile telefon arasındaki bağlantı koptu.";
     let errorCode = 0x7d1;
 
     if (error instanceof Error) {
-      if (error.message.includes('uyumlu değil')) {
-        errorMessage = "Kimlik kartı verilen inputlarla uyumlu değil.";
+      if (error.message.includes('uyumlu değil') || error.message.includes('BAC')) {
+        errorMessage = "Kimlik kartı verilen bilgilerle uyumlu değil. MRZ bilgilerini kontrol edin.";
         errorCode = 0x7d6;
+      } else if (error.message.includes('Select')) {
+        errorMessage = "Kimlik kartı ePassport uygulaması bulunamadı.";
+        errorCode = 0x7d8;
+      } else if (error.message.includes('Challenge')) {
+        errorMessage = "Kimlik kartından challenge alınamadı.";
+        errorCode = 0x7d9;
+      } else if (error.message.includes('MAC')) {
+        errorMessage = "Güvenlik doğrulama hatası (MAC verification failed).";
+        errorCode = 0x7da;
       }
     }
 
     if (Platform.OS === 'ios') {
-      await NfcManager.invalidateSessionWithErrorIOS();
+      try {
+        await NfcManager.invalidateSessionWithErrorIOS(errorMessage);
+      } catch (e) {
+        console.warn('Could not invalidate iOS session:', e);
+      }
     }
 
     return {
@@ -745,6 +969,16 @@ export async function _cleanUp(): Promise<void> {
   } catch (error) {
     console.warn('NFC cleanup error:', error);
   }
+
+  // Reset global variables
+  percentage = 0;
+  isDG1Read = false;
+  DOCUMENT_NUMBER = "";
+  BIRTH_DATE = "";
+  EXPIRY_DATE = "";
+  base64Image = "";
+  MRZ_DATA = "";
+  byteArrayImage = "";
 }
 
 export default {
